@@ -30,8 +30,14 @@ type AppContextType = {
   authToken: string | null;
   setAuthToken: (token: string | null) => void;
 
+  isLoading: boolean;
+  setIsLoading: (loading: boolean) => void;
+
   cartItems: CartItem[];
+  
   serviceCharge: number;
+  setServiceCharge: (amount: number) => void;
+  
   subtotal: number;
   total: number;
 
@@ -61,8 +67,6 @@ type AppContextType = {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const SERVICE_CHARGE = 300;
-
 function buildCartItemId(menuItemId: string, size?: ItemSize, addOns?: string[]) {
   const normalizedAddOns = [...(addOns ?? [])].sort().join('|');
   return `${menuItemId}__${size ?? 'NA'}__${normalizedAddOns}`;
@@ -79,9 +83,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedWaiter, setSelectedWaiter] = useState<Waiter | null>(null);
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [editOrderItems, setEditOrderItems] = useState<CartItem[]>([]);
+
+  const [serviceCharge, setServiceCharge] = useState(300);
 
   const addToCart = ({ menuItem, qty, size, addOns = [] }: AddToCartInput) => {
     const cartItemId = buildCartItemId(menuItem.id, size, addOns);
@@ -121,6 +128,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+
   const removeCartItem = (id: string) => {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
@@ -134,7 +142,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [cartItems]
   );
 
-  const total = subtotal + SERVICE_CHARGE;
+  const total = subtotal + serviceCharge;
 
   const startNewOrderSession = (table: RestaurantTable) => {
     setSelectedTable(table);
@@ -152,7 +160,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       waiter: selectedWaiter,
       items: snapshotItems,
       subtotal,
-      serviceCharge: SERVICE_CHARGE,
+      serviceCharge,
       total,
     });
   };
@@ -194,8 +202,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...placedOrder,
       items: cloneCartItems(editOrderItems),
       subtotal: nextSubtotal,
-      serviceCharge: SERVICE_CHARGE,
-      total: nextSubtotal + SERVICE_CHARGE,
+      serviceCharge,
+      total: nextSubtotal + serviceCharge,
     });
   };
 
@@ -208,23 +216,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [editOrderItems]
   );
 
-  const editTotal = editSubtotal + SERVICE_CHARGE;
+  const editTotal = editSubtotal + serviceCharge;
 
   const value = useMemo(
     () => ({
       selectedWaiter,
       selectedTable,
       authToken,
+
+      isLoading,
+      setIsLoading,
+
       cartItems,
-      serviceCharge: SERVICE_CHARGE,
+      serviceCharge,
       subtotal,
+
+      setServiceCharge,
+
       total,
       placedOrder,
       editOrderItems,
+
       setSelectedWaiter,
       setSelectedTable,
       startNewOrderSession,
       setAuthToken,
+
       addToCart,
       updateCartItemQty,
       removeCartItem,
@@ -242,8 +259,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedWaiter,
       selectedTable,
       authToken,
+      isLoading,
       cartItems,
       subtotal,
+      serviceCharge,
       total,
       placedOrder,
       editOrderItems,
