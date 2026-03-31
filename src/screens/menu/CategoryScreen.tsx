@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,16 @@ import {
   Pressable,
   FlatList,
   useWindowDimensions,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
+
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
-import { categories } from '../../data/mock/categories';
 import { Category } from '../../types/category';
+
+import { getCategories } from '../../services/api/categoryApi';
+import { useAppContext } from '../../context/AppContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Category'>;
 
@@ -25,11 +30,58 @@ export default function CategoryScreen({ navigation }: Props) {
     });
   };
 
+  const { ensureValidToken } = useAppContext();
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  const loadCategories = async () => {
+    try {
+      const token = await ensureValidToken();
+      const data = await getCategories(token || undefined);
+      setCategories(data);
+    } catch (error: any) {
+      Alert.alert(
+        'Failed to load categories',
+        error?.message || 'Please try again'
+      );
+    }
+  };
+
   const renderCategory = ({ item }: { item: Category }) => (
     <Pressable style={styles.card} onPress={() => handlePress(item)}>
       <Text style={styles.cardText}>{item.name}</Text>
     </Pressable>
   );
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        setLoadingCategories(true);
+        await loadCategories();
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    init();
+  }, []);
+
+  if (loadingCategories) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
+        <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 12, color: '#6B7280' }}>
+          Loading categories...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

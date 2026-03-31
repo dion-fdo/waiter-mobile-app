@@ -1,24 +1,16 @@
 import { apiClient } from './client';
 
-export type WaiterLoginRequest = {
-  email: string;
-  password: string;
+export type M2MTokenRequest = {
+  client_id: string;
+  client_secret: string;
 };
 
-export type WaiterLoginResponse = {
-  token?: string;
-  access_token?: string;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-    role?: string;
-  };
+export type M2MTokenResponse = {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
 };
 
-export async function waiterLogin(payload: WaiterLoginRequest) {
-  return apiClient.post<WaiterLoginResponse>(
-    '/api/auth/waiter-login',
-    payload
-  );
+export async function getM2MToken(payload: M2MTokenRequest) {
+  return apiClient.post<M2MTokenResponse>('/api/m2m/token', payload);
 }

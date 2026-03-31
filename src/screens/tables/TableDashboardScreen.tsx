@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,14 @@ import {
   Pressable,
   FlatList,
   useWindowDimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { getTables } from '../../services/api/tableApi';
+import { useAppContext } from '../../context/AppContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
-import { tables } from '../../data/mock/tables';
 import { RestaurantTable, TableStatus as BaseTableStatus } from '../../types/table';
-import { useAppContext } from '../../context/AppContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TableDashboard'>;
 
@@ -20,14 +22,17 @@ type TableFilter = 'all' | BaseTableStatus;
 export default function TableDashboardScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<TableFilter>('all');
   const { width } = useWindowDimensions();
-  const { setSelectedTable, clearCart, startNewOrderSession, logout} = useAppContext();
+  const { setSelectedTable, startNewOrderSession, logout, ensureValidToken} = useAppContext();
+  const [tables, setTables] = useState<RestaurantTable[]>([]);
+  const [loadingTables, setLoadingTables] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const numColumns = width >= 900 ? 4 : width >= 600 ? 3 : 2;
 
   const filteredTables = useMemo(() => {
     if (filter === 'all') return tables;
     return tables.filter((table) => table.status === filter);
-  }, [filter]);
+  }, [filter, tables]);
 
   const handleTablePress = (table: RestaurantTable) => {
     if (table.status === 'free') {
@@ -40,6 +45,38 @@ export default function TableDashboardScreen({ navigation }: Props) {
     navigation.navigate('OrderStatus');
   };
 
+  const loadTables = async () => {
+    try {
+      const token = await ensureValidToken();
+      const data = await getTables(token || undefined);
+      setTables(data);
+    } catch (error: any) {
+      Alert.alert('Failed to load tables', error?.message || 'Please try again');
+    }
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        setLoadingTables(true);
+        await loadTables();
+      } finally {
+        setLoadingTables(false);
+      }
+    };
+
+    init();
+  }, []);
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadTables();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigation.reset({
@@ -47,6 +84,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
       routes: [{ name: 'Welcome' }],
     });
   };
+  
 
   const renderTable = ({ item }: { item: RestaurantTable }) => {
     const statusStyle =
@@ -76,6 +114,22 @@ export default function TableDashboardScreen({ navigation }: Props) {
     );
   };
 
+  if (loadingTables) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
+        <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 12, color: '#6B7280' }}>
+          Loading tables...
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -90,7 +144,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
         <FilterButton label="All" active={filter === 'all'} onPress={() => setFilter('all')} />
         <FilterButton label="Free" active={filter === 'free'} onPress={() => setFilter('free')} />
         <FilterButton
-          label="Reserved"
+          label="Booked"
           active={filter === 'booked'}
           onPress={() => setFilter('booked')}
         />
@@ -110,6 +164,8 @@ export default function TableDashboardScreen({ navigation }: Props) {
         columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
       />
     </View>
   );

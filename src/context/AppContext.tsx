@@ -3,8 +3,12 @@ import { Waiter } from '../types/waiter';
 import { RestaurantTable } from '../types/table';
 import { CartItem } from '../types/cart';
 import { MenuItem } from '../types/menuItem';
+import { getM2MToken } from '../services/api/authApi';
 
 type ItemSize = string;
+
+const M2M_CLIENT_ID = '019d4274-4a0a-71b5-a30b-15cbe9d9c522';
+const M2M_CLIENT_SECRET = '1jvKvb6WLlaSHTy4odfHTtsjA5tIlpjWKukKaBBP';
 
 type AddToCartInput = {
   menuItem: MenuItem;
@@ -29,6 +33,10 @@ type AppContextType = {
   //
   authToken: string | null;
   setAuthToken: (token: string | null) => void;
+
+  tokenExpiryTime: number | null;
+  setTokenExpiryTime: (time: number | null) => void;
+  ensureValidToken: () => Promise<string | null>;
 
   logout: () => void;
 
@@ -85,12 +93,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedWaiter, setSelectedWaiter] = useState<Waiter | null>(null);
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [tokenExpiryTime, setTokenExpiryTime] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [editOrderItems, setEditOrderItems] = useState<CartItem[]>([]);
 
   const [serviceCharge, setServiceCharge] = useState(300);
+
+  const fetchM2MToken = async () => {
+  const response = await getM2MToken({
+      client_id: M2M_CLIENT_ID,
+      client_secret: M2M_CLIENT_SECRET,
+    });
+
+    const expiryTime = Date.now() + response.expires_in * 1000;
+
+    setAuthToken(response.access_token);
+    setTokenExpiryTime(expiryTime);
+
+    return response.access_token;
+  };
+
+  const ensureValidToken = async () => {
+    if (authToken && tokenExpiryTime && Date.now() < tokenExpiryTime - 30000) {
+      return authToken;
+    }
+
+    return await fetchM2MToken();
+  };
 
   const addToCart = ({ menuItem, qty, size, addOns = [] }: AddToCartInput) => {
     const cartItemId = buildCartItemId(menuItem.id, size, addOns);
@@ -142,6 +173,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedWaiter(null);
     setSelectedTable(null);
     setAuthToken(null);
+    setTokenExpiryTime(null);
     setCartItems([]);
     setPlacedOrder(null);
     setEditOrderItems([]);
@@ -234,6 +266,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedTable,
       authToken,
 
+      tokenExpiryTime,
+      setTokenExpiryTime,
+      ensureValidToken,
+
       isLoading,
       setIsLoading,
 
@@ -271,6 +307,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedWaiter,
       selectedTable,
       authToken,
+      tokenExpiryTime,
+      setTokenExpiryTime,
+      ensureValidToken,
       logout,
       isLoading,
       cartItems,
