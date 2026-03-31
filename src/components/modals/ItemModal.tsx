@@ -25,6 +25,12 @@ export default function ItemModal({ visible, onClose, item }: Props) {
     }
   }, [visible, item]);
 
+  const selectedVariant = item?.variants?.find(
+    (variant) => variant.variantName === size
+  );
+
+const displayPrice = selectedVariant?.price ?? item?.price ?? 0;
+
   const toggleAddOn = (addOn: string) => {
     if (!item?.allowMultipleAddOns) {
       setSelectedAddOns((prev) => (prev.includes(addOn) ? [] : [addOn]));
@@ -42,7 +48,10 @@ export default function ItemModal({ visible, onClose, item }: Props) {
     if (!item) return;
 
     addToCart({
-      menuItem: item,
+      menuItem: {
+        ...item,
+        price: displayPrice,
+      },
       qty,
       size,
       addOns: selectedAddOns,
@@ -58,7 +67,7 @@ export default function ItemModal({ visible, onClose, item }: Props) {
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <Text style={styles.title}>{item.name}</Text>
-          <Text style={styles.price}>LKR {item.price}</Text>
+          <Text style={styles.price}>LKR {displayPrice}</Text>
 
           {item.sizeOptions && item.sizeOptions.length > 0 ? (
             <>

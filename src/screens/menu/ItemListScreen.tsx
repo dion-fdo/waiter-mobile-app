@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,25 +6,55 @@ import {
   Pressable,
   FlatList,
   useWindowDimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import ItemModal from '../../components/modals/ItemModal';
-import { menuItems } from '../../data/mock/menuItems';
 import { MenuItem } from '../../types/menuItem';
+import { getFoodsByCategory } from '../../services/api/menuApi';
+import { useAppContext } from '../../context/AppContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ItemList'>;
 
 export default function ItemListScreen({ navigation, route }: Props) {
   const { width } = useWindowDimensions();
   const { categoryId, categoryName } = route.params;
-  const filteredItems = menuItems.filter(
-    (item) => item.categoryId === categoryId
-  );
+  const { selectedTable, ensureValidToken } = useAppContext();
+
   const numColumns = width >= 900 ? 3 : width >= 600 ? 2 : 1;
 
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  const loadItems = async () => {
+    try {
+      const token = await ensureValidToken();
+      const data = await getFoodsByCategory(categoryId, token || undefined);
+      setItems(data);
+    } catch (error: any) {
+      Alert.alert(
+        'Failed to load menu items',
+        error?.message || 'Please try again'
+      );
+    }
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        setLoadingItems(true);
+        await loadItems();
+      } finally {
+        setLoadingItems(false);
+      }
+    };
+
+    init();
+  }, [categoryId]);
 
   const openModal = (item: MenuItem) => {
     setSelectedItem(item);
@@ -35,7 +65,20 @@ export default function ItemListScreen({ navigation, route }: Props) {
     <View style={styles.card}>
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemPrice}>LKR {item.price}</Text>
+
+        <Text style={styles.itemPrice}>
+          LKR {item.variants?.[0]?.price ?? item.price}
+        </Text>
+
+        {item.variants && item.variants.length > 1 ? (
+          <Text style={styles.itemVariantText}>
+            {item.variants.map((variant) => variant.variantName).join(' / ')}
+          </Text>
+        ) : item.variants?.[0]?.variantName ? (
+          <Text style={styles.itemVariantText}>
+            {item.variants[0].variantName}
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.buttonRow}>
@@ -43,24 +86,52 @@ export default function ItemListScreen({ navigation, route }: Props) {
           <Text style={styles.addButtonText}>+ Add</Text>
         </Pressable>
 
-        <Pressable style={styles.cartButton} onPress={() => navigation.navigate('Cart')}>
+        <Pressable
+          style={styles.cartButton}
+          onPress={() => navigation.navigate('Cart')}
+        >
           <Text style={styles.cartButtonText}>Go Cart</Text>
         </Pressable>
       </View>
     </View>
   );
 
+  if (loadingItems) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
+        <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 12, color: '#6B7280' }}>
+          Loading menu items...
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>{categoryName}</Text>
 
+      {selectedTable && (
+        <Text style={styles.tableInfo}>Table {selectedTable.number}</Text>
+      )}
+
       <FlatList
         key={numColumns}
-        data={filteredItems}
+        data={items}
         keyExtractor={(item) => item.id}
         renderItem={renderItemCard}
         numColumns={numColumns}
         columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyText}>No menu items found.</Text>
+          </View>
+        }
       />
 
       <ItemModal
@@ -82,8 +153,13 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 24,
     fontWeight: '700',
-    marginBottom: 16,
+    marginBottom: 6,
     color: '#111827',
+  },
+  tableInfo: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 12,
   },
   row: {
     justifyContent: 'space-between',
@@ -97,7 +173,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
-    minHeight: 130,
+    minHeight: 140,
     justifyContent: 'space-between',
   },
   itemInfo: {
@@ -110,6 +186,11 @@ const styles = StyleSheet.create({
   },
   itemPrice: {
     fontSize: 15,
+    color: '#6B7280',
+    marginTop: 6,
+  },
+  itemVariantText: {
+    fontSize: 13,
     color: '#6B7280',
     marginTop: 6,
   },
@@ -135,5 +216,17 @@ const styles = StyleSheet.create({
   cartButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  emptyBox: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#6B7280',
   },
 });
