@@ -1,4 +1,4 @@
-const BASE_URL = 'http://YOUR_BASE_URL_HERE';
+const BASE_URL = 'https://cuisine.kernelencode.com';
 
 type RequestOptions = RequestInit & {
   headers?: Record<string, string>;
@@ -8,6 +8,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
+      Accept: 'application/json',
       'Content-Type': 'application/json',
       ...(options.headers ?? {}),
     },
@@ -15,7 +16,22 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || `Request failed with status ${response.status}`);
+
+    let message = `Request failed with status ${response.status}`;
+
+    try {
+      const parsed = JSON.parse(errorText);
+      message =
+        parsed.message ||
+        parsed.error ||
+        JSON.stringify(parsed);
+    } catch {
+      message = errorText.includes('<!DOCTYPE html>')
+        ? `Server returned HTML instead of JSON. Status: ${response.status}`
+        : errorText;
+    }
+
+    throw new Error(message);
   }
 
   return response.json() as Promise<T>;

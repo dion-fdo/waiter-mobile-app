@@ -10,35 +10,92 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { waiters } from '../../data/mock/waiters';
+import { waiterLogin } from '../../services/api/authApi';
 import { useAppContext } from '../../context/AppContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WaiterPin'>;
 
 export default function WaiterPinScreen({ route, navigation }: Props) {
   const { waiterName } = route.params;
-  const { setSelectedWaiter } = useAppContext();
+
+  const {
+    setSelectedWaiter,
+    setAuthToken,
+    isLoading,
+    setIsLoading,
+  } = useAppContext();
+
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
+  // const handleLogin = async () => {
+  //   if (!password.trim()) {
+  //     Alert.alert('Enter password');
+  //     return;
+  //   }
+
+  //   try {
+  //     setIsLoading(true);
+
+  //     //const email = `${waiterName.toLowerCase().replace(/\s+/g, '')}@kernelencode.com`;
+  //     const email = 'xyz@mail.com';
+
+  //     const response = await waiterLogin({
+  //       email,
+  //       password,
+  //     });
+
+  //     const token =
+  //       response.token || response.access_token || 'session-token';
+
+  //     setAuthToken(token);
+
+  //     setSelectedWaiter({
+  //       id: response.user?.id || waiterName,
+  //       name: response.user?.name || waiterName,
+  //       email: response.user?.email || email,
+  //     });
+
+  //     navigation.navigate('TableDashboard');
+  //   } catch (error: any) {
+  //     Alert.alert(
+  //       'Login failed',
+  //       error?.message || 'Invalid credentials'
+  //     );
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
+  const handleLogin = async () => {
     if (!password.trim()) {
       Alert.alert('Enter password');
       return;
     }
 
-    const matchedWaiter = waiters.find((waiter) => waiter.name === waiterName);
+    try {
+      setIsLoading(true);
 
-    if (!matchedWaiter) {
-      Alert.alert('Waiter not found');
-      return;
+      const response = await waiterLogin({
+        email: 'xyz@mail.com',
+        password,
+      });
+
+      const token = response.token || response.access_token || 'session-token';
+
+      setAuthToken(token);
+
+      setSelectedWaiter({
+        id: response.user?.id || 'temp-waiter',
+        name: response.user?.name || waiterName,
+        email: response.user?.email || 'xyz@mail.com',
+      });
+
+      navigation.navigate('TableDashboard');
+    } catch (error: any) {
+      Alert.alert('Login failed', error?.message || 'Invalid credentials');
+    } finally {
+      setIsLoading(false);
     }
-
-    if (matchedWaiter.password && matchedWaiter.password !== password) {
-      Alert.alert('Invalid password');
-      return;
-    }
-
-    setSelectedWaiter(matchedWaiter);
-    navigation.navigate('TableDashboard');
   };
 
   return (

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, StatusBar } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 
@@ -7,50 +8,95 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Welcome'>;
 
 export default function WelcomeScreen({ navigation }: Props) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Waiter Mobile App</Text>
-      <Text style={styles.subtitle}>Restaurant order handling for waiters</Text>
+    <LinearGradient
+      colors={['#FFD3A9', '#F05822']}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={styles.container}
+    >
+      <StatusBar barStyle="dark-content" />
 
-      <Pressable
-        style={styles.button}
-        onPress={() => navigation.navigate('WaiterSelection')}
-      >
-        <Text style={styles.buttonText}>Get Started</Text>
-      </Pressable>
-    </View>
+      <View style={styles.logoContainer}>
+        <Image
+          source={require('../../../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
+
+      <View style={styles.content}>
+        <Text style={styles.welcome}>Welcome</Text>
+        <Text style={styles.subtitle}>You’re the heart of great service</Text>
+      </View>
+
+      <View style={styles.bottomSection}>
+        <Pressable
+          style={styles.button}
+          onPress={() => navigation.navigate('WaiterSelection')}
+        >
+          <Text style={styles.buttonText}>Get Started</Text>
+        </Pressable>
+
+        <Text style={styles.footerText}>Let’s make every guest feel special!</Text>
+      </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 48,
+    paddingBottom: 28,
+    justifyContent: 'space-between',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 10,
+  logoContainer: {
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  logo: {
+    width: 150,
+    height: 70,
+  },
+  content: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  welcome: {
+    fontSize: 76,
+    fontFamily: 'Inspiration',
+    color: '#000000',
     textAlign: 'center',
+    lineHeight: 110,
   },
   subtitle: {
-    fontSize: 15,
-    color: '#6B7280',
+    marginTop: 8,
+    fontSize: 16,
+    fontFamily: 'InstrumentSerif-Regular',
+    color: '#2A1208',
     textAlign: 'center',
-    marginBottom: 32,
+  },
+  bottomSection: {
+    alignItems: 'center',
   },
   button: {
-    backgroundColor: '#F97316',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 12,
+    width: '100%',
+    backgroundColor: '#992D06',
+    paddingVertical: 18,
+    borderRadius: 999,
+    alignItems: 'center',
+    marginBottom: 28,
   },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
+  },
+  footerText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });

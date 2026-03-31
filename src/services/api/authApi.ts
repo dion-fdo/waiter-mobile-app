@@ -1,19 +1,24 @@
 import { apiClient } from './client';
 
-export type LoginRequest = {
-  username: string;
+export type WaiterLoginRequest = {
+  email: string;
   password: string;
 };
 
-export type LoginResponse = {
+export type WaiterLoginResponse = {
   token?: string;
+  access_token?: string;
   user?: {
     id: string;
     name: string;
+    email: string;
     role?: string;
   };
 };
 
-export async function loginWaiter(payload: LoginRequest): Promise<LoginResponse> {
-  return apiClient.post<LoginResponse>('/auth/login', payload);
+export async function waiterLogin(payload: WaiterLoginRequest) {
+  return apiClient.post<WaiterLoginResponse>(
+    '/api/auth/waiter-login',
+    payload
+  );
 }

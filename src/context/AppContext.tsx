@@ -30,6 +30,8 @@ type AppContextType = {
   authToken: string | null;
   setAuthToken: (token: string | null) => void;
 
+  logout: () => void;
+
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 
@@ -128,13 +130,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-
   const removeCartItem = (id: string) => {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const clearCart = () => {
     setCartItems([]);
+  };
+
+  const logout = () => {
+    setSelectedWaiter(null);
+    setSelectedTable(null);
+    setAuthToken(null);
+    setCartItems([]);
+    setPlacedOrder(null);
+    setEditOrderItems([]);
   };
 
   const subtotal = useMemo(
@@ -227,6 +237,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       setIsLoading,
 
+      logout,
+
       cartItems,
       serviceCharge,
       subtotal,
@@ -259,6 +271,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedWaiter,
       selectedTable,
       authToken,
+      logout,
       isLoading,
       cartItems,
       subtotal,

@@ -20,7 +20,7 @@ type TableFilter = 'all' | BaseTableStatus;
 export default function TableDashboardScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<TableFilter>('all');
   const { width } = useWindowDimensions();
-  const { setSelectedTable, clearCart, startNewOrderSession} = useAppContext();
+  const { setSelectedTable, clearCart, startNewOrderSession, logout} = useAppContext();
 
   const numColumns = width >= 900 ? 4 : width >= 600 ? 3 : 2;
 
@@ -38,6 +38,14 @@ export default function TableDashboardScreen({ navigation }: Props) {
 
     setSelectedTable(table);
     navigation.navigate('OrderStatus');
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Welcome' }],
+    });
   };
 
   const renderTable = ({ item }: { item: RestaurantTable }) => {
@@ -70,7 +78,13 @@ export default function TableDashboardScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Tables</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.header}>Tables</Text>
+
+        <Pressable style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.filterRow}>
         <FilterButton label="All" active={filter === 'all'} onPress={() => setFilter('all')} />
@@ -80,11 +94,11 @@ export default function TableDashboardScreen({ navigation }: Props) {
           active={filter === 'booked'}
           onPress={() => setFilter('booked')}
         />
-        <FilterButton
+        {/* <FilterButton
           label="Occupied"
           active={filter === 'booked'}
           onPress={() => setFilter('booked')}
-        />
+        /> */}
       </View>
 
       <FlatList
@@ -156,6 +170,28 @@ const styles = StyleSheet.create({
   activeFilterButtonText: {
     color: '#FFFFFF',
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  logoutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+
+  logoutButtonText: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  
   listContent: {
     paddingBottom: 24,
   },
