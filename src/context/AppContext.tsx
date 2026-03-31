@@ -1,14 +1,18 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Waiter } from '../types/waiter';
 import { RestaurantTable } from '../types/table';
 import { CartItem } from '../types/cart';
 import { MenuItem } from '../types/menuItem';
 import { getM2MToken } from '../services/api/authApi';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 type ItemSize = string;
 
 const M2M_CLIENT_ID = '019d4274-4a0a-71b5-a30b-15cbe9d9c522';
 const M2M_CLIENT_SECRET = '1jvKvb6WLlaSHTy4odfHTtsjA5tIlpjWKukKaBBP';
+
+const ORDER_DRAFT_STORAGE_KEY = 'waiter_app_table_order_draft';
 
 type AddToCartInput = {
   menuItem: MenuItem;
@@ -16,6 +20,13 @@ type AddToCartInput = {
   size?: ItemSize;
   addOns?: string[];
 };
+
+type TableOrderDraft = {
+  table: RestaurantTable;
+  cartItems: CartItem[];
+};
+
+type TableOrderDraftMap = Record<string, TableOrderDraft>;
 
 type PlacedOrder = {
   id: string;
@@ -26,6 +37,7 @@ type PlacedOrder = {
   serviceCharge: number;
   total: number;
 };
+
 
 type AppContextType = {
   selectedWaiter: Waiter | null;
@@ -115,13 +127,94 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return response.access_token;
   };
 
+  const getAllTableDraftsFromStorage = async (): Promise<TableOrderDraftMap> => {
+    try {
+      const raw = await AsyncStorage.getItem(ORDER_DRAFT_STORAGE_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw) as TableOrderDraftMap;
+    } catch (error) {
+      console.log('Failed to read table drafts', error);
+      return {};
+    }
+  };
+
+  const saveAllTableDraftsToStorage = async (drafts: TableOrderDraftMap) => {
+    try {
+      await AsyncStorage.setItem(
+        ORDER_DRAFT_STORAGE_KEY,
+        JSON.stringify(drafts)
+      );
+    } catch (error) {
+      console.log('Failed to save table drafts', error);
+    }
+  };
+
+  const clearAllTableDraftsFromStorage = async () => {
+    try {
+      await AsyncStorage.removeItem(ORDER_DRAFT_STORAGE_KEY);
+    } catch (error) {
+      console.log('Failed to clear all table drafts', error);
+    }
+  };
+
+  const loadDraftForTable = async (table: RestaurantTable) => {
+    try {
+      const drafts = await getAllTableDraftsFromStorage();
+      const tableDraft = drafts[table.id];
+
+      if (tableDraft) {
+        setCartItems(tableDraft.cartItems ?? []);
+      } else {
+        setCartItems([]);
+      }
+    } catch (error) {
+      console.log('Failed to load draft for table', error);
+      setCartItems([]);
+    }
+  };
+
+  const clearDraftForTable = async (tableId: string) => {
+    try {
+      const drafts = await getAllTableDraftsFromStorage();
+      delete drafts[tableId];
+      await saveAllTableDraftsToStorage(drafts);
+    } catch (error) {
+      console.log('Failed to clear draft for table', error);
+    }
+  };
+
+  useEffect(() => {
+    const saveCurrentTableDraft = async () => {
+      if (!selectedTable) return;
+
+      try {
+        const drafts = await getAllTableDraftsFromStorage();
+
+        if (cartItems.length === 0) {
+          delete drafts[selectedTable.id];
+        } else {
+          drafts[selectedTable.id] = {
+            table: selectedTable,
+            cartItems,
+          };
+        }
+
+        await saveAllTableDraftsToStorage(drafts);
+      } catch (error) {
+        console.log('Failed to save current table draft', error);
+      }
+    };
+
+    saveCurrentTableDraft();
+  }, [selectedTable, cartItems]);
+
   const ensureValidToken = async () => {
     if (authToken && tokenExpiryTime && Date.now() < tokenExpiryTime - 30000) {
       return authToken;
     }
 
     return await fetchM2MToken();
-  };
+  }; 
 
   const addToCart = ({ menuItem, qty, size, addOns = [] }: AddToCartInput) => {
     const cartItemId = buildCartItemId(menuItem.id, size, addOns);
@@ -177,6 +270,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCartItems([]);
     setPlacedOrder(null);
     setEditOrderItems([]);
+    clearAllTableDraftsFromStorage();
   };
 
   const subtotal = useMemo(
@@ -186,11 +280,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const total = subtotal + serviceCharge;
 
-  const startNewOrderSession = (table: RestaurantTable) => {
+  const startNewOrderSession = async (table: RestaurantTable) => {
     setSelectedTable(table);
-    setCartItems([]);
     setPlacedOrder(null);
     setEditOrderItems([]);
+    await loadDraftForTable(table);
   };
 
   const placeOrder = () => {
@@ -205,6 +299,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       serviceCharge,
       total,
     });
+
+    if (selectedTable) {
+      clearDraftForTable(selectedTable.id);
+    }
   };
 
   const startEditPlacedOrder = () => {
