@@ -7,7 +7,7 @@ import {
   FlatList,
   useWindowDimensions,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
 
 import { NativeStackScreenProps } from '@react-navigation/native-stack';

@@ -8,12 +8,13 @@ import {
   useWindowDimensions,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import ItemModal from '../../components/modals/ItemModal';
 import { MenuItem } from '../../types/menuItem';
-import { getFoodsByCategory } from '../../services/api/menuApi';
+import { getFoodsByCategory, searchFoods } from '../../services/api/menuApi';
 import { useAppContext } from '../../context/AppContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ItemList'>;
@@ -30,9 +31,18 @@ export default function ItemListScreen({ navigation, route }: Props) {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const loadItems = async () => {
+  const [searchText, setSearchText] = useState('');
+
+  const loadItems = async (keyword?: string) => {
     try {
       const token = await ensureValidToken();
+
+      if (keyword && keyword.trim().length > 0) {
+        const data = await searchFoods(keyword.trim(), token || undefined);
+        setItems(data);
+        return;
+      }
+
       const data = await getFoodsByCategory(categoryId, token || undefined);
       setItems(data);
     } catch (error: any) {
@@ -55,6 +65,14 @@ export default function ItemListScreen({ navigation, route }: Props) {
 
     init();
   }, [categoryId]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      loadItems(searchText);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [searchText]);
 
   const openModal = (item: MenuItem) => {
     setSelectedItem(item);
@@ -115,6 +133,14 @@ export default function ItemListScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>{categoryName}</Text>
+
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search menu items..."
+        placeholderTextColor="#9CA3AF"
+        value={searchText}
+        onChangeText={setSearchText}
+      />
 
       {selectedTable && (
         <Text style={styles.tableInfo}>Table {selectedTable.number}</Text>
@@ -228,5 +254,16 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 15,
     color: '#6B7280',
+  },
+  searchInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+    marginBottom: 12,
   },
 });
