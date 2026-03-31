@@ -37,7 +37,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const handleTablePress = async (table: RestaurantTable) => {
     if (table.status === 'free') {
       await startNewOrderSession(table);
-      navigation.navigate('Category');
+      navigation.navigate('CustomerSelection');
       return;
     }
 

@@ -5,6 +5,7 @@ import { CartItem } from '../types/cart';
 import { MenuItem } from '../types/menuItem';
 import { getM2MToken } from '../services/api/authApi';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Customer } from '../types/customer';
 
 
 type ItemSize = string;
@@ -54,6 +55,9 @@ type AppContextType = {
 
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
+
+  selectedCustomer: Customer | null;
+  setSelectedCustomer: (customer: Customer | null) => void;
 
   cartItems: CartItem[];
   
@@ -107,6 +111,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [tokenExpiryTime, setTokenExpiryTime] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [editOrderItems, setEditOrderItems] = useState<CartItem[]>([]);
@@ -267,6 +272,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedTable(null);
     setAuthToken(null);
     setTokenExpiryTime(null);
+    setSelectedCustomer(null);
     setCartItems([]);
     setPlacedOrder(null);
     setEditOrderItems([]);
@@ -373,6 +379,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       logout,
 
+      selectedCustomer,
+      setSelectedCustomer,
+
       cartItems,
       serviceCharge,
       subtotal,
@@ -410,6 +419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ensureValidToken,
       logout,
       isLoading,
+      selectedCustomer,
       cartItems,
       subtotal,
       serviceCharge,

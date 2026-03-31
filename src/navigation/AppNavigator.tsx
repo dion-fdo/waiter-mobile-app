@@ -14,12 +14,14 @@ import OrderDetailsScreen from '../screens/orders/OrderDetailsScreen';
 import OrderStatusScreen from '../screens/orders/OrderStatusScreen';
 import EditPlacedOrderScreen from '../screens/orders/EditPlacedOrderScreen';
 import CashierApprovalScreen from '../screens/orders/CashierApprovalScreen';
+import CustomerSelectionScreen from '../screens/customers/CustomerSelectionScreen';
 
 export type RootStackParamList = {
   Welcome: undefined;
   WaiterSelection: undefined;
   WaiterPin: { waiterName: string };
   TableDashboard: undefined;
+  CustomerSelection: undefined;
   Category: undefined;
   ItemList: { categoryId: string; categoryName: string };
   Cart: undefined;
@@ -46,6 +48,7 @@ export default function AppNavigator() {
         <Stack.Screen name="WaiterPin" component={WaiterPinScreen} />
 
         <Stack.Screen name="TableDashboard" component={TableDashboardScreen} />
+        <Stack.Screen name="CustomerSelection" component={CustomerSelectionScreen} />
         <Stack.Screen name="Category" component={CategoryScreen} />
         <Stack.Screen name="ItemList" component={ItemListScreen} />
 
