@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
-import { waiters } from '../../data/mock/waiters';
 import { useAppContext } from '../../context/AppContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WaiterPin'>;
@@ -18,8 +17,7 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
   const { waiterName } = route.params;
 
   const {
-    setSelectedWaiter,
-    setAuthToken,
+    selectedWaiter,
     isLoading,
     setIsLoading,
   } = useAppContext();
@@ -35,19 +33,11 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
     try {
       setIsLoading(true);
 
-      const matchedWaiter = waiters.find((waiter) => waiter.name === waiterName);
-
-      if (!matchedWaiter) {
-        Alert.alert('Waiter not found');
+      if (!selectedWaiter) {
+        Alert.alert('Waiter not selected');
         return;
       }
 
-      if (matchedWaiter.password && matchedWaiter.password !== password) {
-        Alert.alert('Invalid password');
-        return;
-      }
-
-      setSelectedWaiter(matchedWaiter);
       navigation.navigate('TableDashboard');
     } catch (error) {
       Alert.alert('Login failed');
@@ -59,7 +49,7 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Enter Password</Text>
-      <Text style={styles.subtitle}>{waiterName}</Text>
+      <Text style={styles.subtitle}>{selectedWaiter?.email || waiterName}</Text>
 
       <TextInput
         style={styles.input}
@@ -72,8 +62,10 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
         autoCorrect={false}
       />
 
-      <Pressable style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
+      <Pressable style={styles.button} onPress={handleLogin} disabled={isLoading}>
+        <Text style={styles.buttonText}>
+          {isLoading ? 'Logging in...' : 'Login'}
+        </Text>
       </Pressable>
 
       <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
