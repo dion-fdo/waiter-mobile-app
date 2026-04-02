@@ -55,9 +55,18 @@ export default function CartScreen({ navigation }: Props) {
         <Text style={styles.itemMeta}>
           Qty: {item.qty} × LKR {item.price}
         </Text>
-        {item.size ? <Text style={styles.itemSubMeta}>Size: {item.size}</Text> : null}
-        {item.addOns && item.addOns.length > 0 ? (
-          <Text style={styles.itemSubMeta}>Add-ons: {item.addOns.join(', ')}</Text>
+        {item.variantName ? (
+          <Text style={styles.itemSubText}>Variant: {item.variantName}</Text>
+        ) : null}
+
+        {item.selectedAddOns && item.selectedAddOns.length > 0 ? (
+          <Text style={styles.itemSubText}>
+            Add-ons: {item.selectedAddOns.map((addOn) => addOn.addOnName).join(', ')}
+          </Text>
+        ) : null}
+
+        {item.note ? (
+          <Text style={styles.itemSubText}>Note: {item.note}</Text>
         ) : null}
       </View>
 
@@ -284,5 +293,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  itemSubText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 4,
   },
 });

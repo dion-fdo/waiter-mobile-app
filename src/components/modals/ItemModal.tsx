@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
-import { MenuItem } from '../../types/menuItem';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Modal,
+  TextInput,
+  ScrollView,
+} from 'react-native';
+import { MenuItem, MenuAddOn } from '../../types/menuItem';
 import { useAppContext } from '../../context/AppContext';
+import { SelectedAddOn } from '../../types/cart';
 
 type Props = {
   visible: boolean;
@@ -9,38 +18,69 @@ type Props = {
   item: MenuItem | null;
 };
 
-const AVAILABLE_ADD_ONS = ['Extra Cheese', 'Extra Sauce', 'No Onion'];
+function buildSelectedAddOn(
+  addOn: MenuAddOn,
+  selected: boolean
+): SelectedAddOn | null {
+  if (!selected) return null;
+
+  return {
+    addOnId: addOn.addOnId,
+    addOnName: addOn.addOnName,
+    price: addOn.price,
+    qty: 1,
+  };
+}
 
 export default function ItemModal({ visible, onClose, item }: Props) {
   const { addToCart } = useAppContext();
-  const [size, setSize] = useState<string | undefined>(undefined);
+
+  const defaultVariantName = item?.variants?.[0]?.variantName;
+  const [selectedVariantName, setSelectedVariantName] = useState<string>(
+    defaultVariantName ?? ''
+  );
   const [qty, setQty] = useState(1);
-  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+  const [note, setNote] = useState('');
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
 
   useEffect(() => {
-    if (visible) {
-      setSize(item?.sizeOptions?.[0]);
-      setQty(1);
-      setSelectedAddOns([]);
-    }
-  }, [visible, item]);
+    if (!item) return;
 
-  const selectedVariant = item?.variants?.find(
-    (variant) => variant.variantName === size
+    setSelectedVariantName(item.variants?.[0]?.variantName ?? '');
+    setQty(1);
+    setNote('');
+    setSelectedAddOnIds([]);
+  }, [item, visible]);
+
+  const selectedVariant = useMemo(() => {
+    return item?.variants?.find(
+      (variant) => variant.variantName === selectedVariantName
+    );
+  }, [item, selectedVariantName]);
+
+  const selectedAddOns: SelectedAddOn[] = useMemo(() => {
+    if (!item?.addOns?.length) return [];
+
+    return item.addOns
+      .map((addOn) =>
+        buildSelectedAddOn(addOn, selectedAddOnIds.includes(addOn.addOnId))
+      )
+      .filter(Boolean) as SelectedAddOn[];
+  }, [item, selectedAddOnIds]);
+
+  const addOnsTotal = selectedAddOns.reduce(
+    (sum, addOn) => sum + addOn.price * addOn.qty,
+    0
   );
 
-const displayPrice = selectedVariant?.price ?? item?.price ?? 0;
+  const basePrice = selectedVariant?.price ?? item?.price ?? 0;
+  const displayPrice = basePrice + addOnsTotal;
 
-  const toggleAddOn = (addOn: string) => {
-    if (!item?.allowMultipleAddOns) {
-      setSelectedAddOns((prev) => (prev.includes(addOn) ? [] : [addOn]));
-      return;
-    }
-
-    setSelectedAddOns((prev) =>
-      prev.includes(addOn)
-        ? prev.filter((value) => value !== addOn)
-        : [...prev, addOn]
+  const toggleAddOn = (addOnId: string) => {
+    setSelectedAddOnIds((prev) =>
+      prev.includes(addOnId)
+        ? prev.filter((id) => id !== addOnId)
+        : [...prev, addOnId]
     );
   };
 
@@ -53,8 +93,10 @@ const displayPrice = selectedVariant?.price ?? item?.price ?? 0;
         price: displayPrice,
       },
       qty,
-      size,
-      addOns: selectedAddOns,
+      variantId: selectedVariant?.variantId,
+      variantName: selectedVariant?.variantName,
+      selectedAddOns,
+      note: note.trim(),
     });
 
     onClose();
@@ -66,83 +108,99 @@ const displayPrice = selectedVariant?.price ?? item?.price ?? 0;
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <Text style={styles.title}>{item.name}</Text>
-          <Text style={styles.price}>LKR {displayPrice}</Text>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={styles.title}>{item.name}</Text>
+            <Text style={styles.price}>LKR {displayPrice.toFixed(2)}</Text>
 
-          {item.sizeOptions && item.sizeOptions.length > 0 ? (
-            <>
-              <Text style={styles.section}>Size</Text>
-              <View style={styles.row}>
-                {item.sizeOptions.map((option) => (
-                  <Pressable
-                    key={option}
-                    style={[
-                      styles.option,
-                      size === option && styles.selectedOption,
-                    ]}
-                    onPress={() => setSize(option)}
-                  >
-                    <Text style={styles.optionText}>{option}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          ) : null}
+            {item.variants && item.variants.length > 0 ? (
+              <>
+                <Text style={styles.section}>Variant</Text>
+                <View style={styles.rowWrap}>
+                  {item.variants.map((variant) => {
+                    const selected = selectedVariantName === variant.variantName;
 
-          <Text style={styles.section}>Quantity</Text>
-          <View style={styles.qtyRow}>
-            <Pressable
-              style={styles.qtyButton}
-              onPress={() => setQty((prev) => Math.max(1, prev - 1))}
-            >
-              <Text style={styles.qtyButtonText}>-</Text>
-            </Pressable>
-
-            <Text style={styles.qtyText}>{qty}</Text>
-
-            <Pressable style={styles.qtyButton} onPress={() => setQty((prev) => prev + 1)}>
-              <Text style={styles.qtyButtonText}>+</Text>
-            </Pressable>
-          </View>
-
-          {item.addOnOptions && item.addOnOptions.length > 0 ? (
-            <>
-              <Text style={styles.section}>Add Ons</Text>
-              <View style={styles.addOnBox}>
-                {item.addOnOptions.map((addOn) => {
-                  const selected = selectedAddOns.includes(addOn);
-
-                  return (
-                    <Pressable
-                      key={addOn}
-                      style={[
-                        styles.addOnItem,
-                        selected && styles.selectedAddOnItem,
-                      ]}
-                      onPress={() => toggleAddOn(addOn)}
-                    >
-                      <Text
-                        style={[
-                          styles.addOnText,
-                          selected && styles.selectedAddOnText,
-                        ]}
+                    return (
+                      <Pressable
+                        key={variant.variantId}
+                        style={[styles.option, selected && styles.selectedOption]}
+                        onPress={() => setSelectedVariantName(variant.variantName)}
                       >
-                        {addOn}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </>
-          ) : null}
+                        <Text style={styles.optionText}>{variant.variantName}</Text>
+                        <Text style={styles.optionSubText}>
+                          LKR {variant.price.toFixed(2)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
 
-          <Pressable style={styles.addBtn} onPress={handleAddToCart}>
-            <Text style={styles.addBtnText}>Add to Cart</Text>
-          </Pressable>
+            <Text style={styles.section}>Quantity</Text>
+            <View style={styles.qtyRow}>
+              <Pressable
+                style={styles.qtyButton}
+                onPress={() => setQty((prev) => Math.max(1, prev - 1))}
+              >
+                <Text style={styles.qtyButtonText}>-</Text>
+              </Pressable>
 
-          <Pressable style={styles.cancelBtn} onPress={onClose}>
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </Pressable>
+              <Text style={styles.qtyText}>{qty}</Text>
+
+              <Pressable
+                style={styles.qtyButton}
+                onPress={() => setQty((prev) => prev + 1)}
+              >
+                <Text style={styles.qtyButtonText}>+</Text>
+              </Pressable>
+            </View>
+
+            {item.addOns && item.addOns.length > 0 ? (
+              <>
+                <Text style={styles.section}>Add-ons</Text>
+                <View style={styles.addOnContainer}>
+                  {item.addOns.map((addOn) => {
+                    const selected = selectedAddOnIds.includes(addOn.addOnId);
+
+                    return (
+                      <Pressable
+                        key={addOn.addOnId}
+                        style={[styles.addOnChip, selected && styles.selectedAddOnChip]}
+                        onPress={() => toggleAddOn(addOn.addOnId)}
+                      >
+                        <Text
+                          style={[
+                            styles.addOnChipText,
+                            selected && styles.selectedAddOnChipText,
+                          ]}
+                        >
+                          {addOn.addOnName} (+LKR {addOn.price.toFixed(2)})
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+
+            <Text style={styles.section}>Item note</Text>
+            <TextInput
+              style={styles.noteInput}
+              placeholder="Enter note for this item"
+              placeholderTextColor="#9CA3AF"
+              value={note}
+              onChangeText={setNote}
+              multiline
+            />
+
+            <Pressable style={styles.addBtn} onPress={handleAddToCart}>
+              <Text style={styles.addBtnText}>Add to Cart</Text>
+            </Pressable>
+
+            <Pressable style={styles.cancelBtn} onPress={onClose}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </Pressable>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -160,6 +218,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    maxHeight: '85%',
   },
   title: {
     fontSize: 22,
@@ -179,13 +238,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
   },
-  row: {
+  rowWrap: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   option: {
-    flex: 1,
+    minWidth: 110,
     paddingVertical: 12,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 10,
@@ -197,9 +258,14 @@ const styles = StyleSheet.create({
     borderColor: '#F97316',
   },
   optionText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
+  },
+  optionSubText: {
+    fontSize: 12,
+    color: '#374151',
+    marginTop: 4,
   },
   qtyRow: {
     flexDirection: 'row',
@@ -226,31 +292,41 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
-  addOnBox: {
+  addOnContainer: {
     gap: 8,
   },
-  addOnText: {
-    fontSize: 14,
-    color: '#111827',
-  },
-
-  addOnItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+  addOnChip: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    marginBottom: 8,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
   },
-
-  selectedAddOnItem: {
-    backgroundColor: '#FDBA74',
+  selectedAddOnChip: {
+    backgroundColor: '#FFF7ED',
     borderColor: '#F97316',
   },
-
-  selectedAddOnText: {
+  addOnChipText: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  selectedAddOnChipText: {
+    color: '#C2410C',
     fontWeight: '700',
+  },
+  noteInput: {
+    minHeight: 90,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
+    textAlignVertical: 'top',
   },
   addBtn: {
     backgroundColor: '#F97316',

@@ -1,8 +1,12 @@
-export type ItemSizeOption = string;
-
 export type MenuVariant = {
   variantId: string;
   variantName: string;
+  price: number;
+};
+
+export type MenuAddOn = {
+  addOnId: string;
+  addOnName: string;
   price: number;
 };
 
@@ -12,10 +16,8 @@ export type MenuItem = {
   price: number;
   categoryId?: string;
   categoryName?: string;
-
-  sizeOptions?: ItemSizeOption[];
-  addOnOptions?: string[];
-  allowMultipleAddOns?: boolean;
-
+  component?: string;
+  itemNotes?: string;
   variants?: MenuVariant[];
+  addOns?: MenuAddOn[];
 };

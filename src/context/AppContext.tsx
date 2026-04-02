@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Waiter } from '../types/waiter';
 import { RestaurantTable } from '../types/table';
-import { CartItem } from '../types/cart';
+import { CartItem, SelectedAddOn } from '../types/cart';
 import { MenuItem } from '../types/menuItem';
 import { getM2MToken } from '../services/api/authApi';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,8 +18,10 @@ const ORDER_DRAFT_STORAGE_KEY = 'waiter_app_table_order_draft';
 type AddToCartInput = {
   menuItem: MenuItem;
   qty: number;
-  size?: ItemSize;
-  addOns?: string[];
+  variantId?: string;
+  variantName?: string;
+  selectedAddOns?: SelectedAddOn[];
+  note?: string;
 };
 
 type TableOrderDraft = {
@@ -93,15 +95,26 @@ type AppContextType = {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-function buildCartItemId(menuItemId: string, size?: ItemSize, addOns?: string[]) {
-  const normalizedAddOns = [...(addOns ?? [])].sort().join('|');
-  return `${menuItemId}__${size ?? 'NA'}__${normalizedAddOns}`;
+function buildCartItemId(
+  menuItemId: string,
+  variantId?: string,
+  selectedAddOns?: SelectedAddOn[],
+  note?: string
+) {
+  const normalizedAddOns = [...(selectedAddOns ?? [])]
+    .map((item) => `${item.addOnId}:${item.qty}`)
+    .sort()
+    .join('|');
+
+  return `${menuItemId}__${variantId ?? 'NA'}__${normalizedAddOns}__${note ?? ''}`;
 }
 
 function cloneCartItems(items: CartItem[]) {
   return items.map((item) => ({
     ...item,
-    addOns: item.addOns ? [...item.addOns] : [],
+    selectedAddOns: item.selectedAddOns
+      ? item.selectedAddOns.map((addOn) => ({ ...addOn }))
+      : [],
   }));
 }
 
@@ -221,8 +234,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return await fetchM2MToken();
   }; 
 
-  const addToCart = ({ menuItem, qty, size, addOns = [] }: AddToCartInput) => {
-    const cartItemId = buildCartItemId(menuItem.id, size, addOns);
+  const addToCart = ({
+    menuItem,
+    qty,
+    variantId,
+    variantName,
+    selectedAddOns = [],
+    note = '',
+  }: AddToCartInput) => {
+    const cartItemId = buildCartItemId(
+      menuItem.id,
+      variantId,
+      selectedAddOns,
+      note
+    );
 
     setCartItems((prev) => {
       const existingItem = prev.find((item) => item.id === cartItemId);
@@ -237,11 +262,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         {
           id: cartItemId,
+          menuId: menuItem.id,
           name: menuItem.name,
           qty,
           price: menuItem.price,
-          size,
-          addOns,
+          variantId,
+          variantName,
+          selectedAddOns,
+          note,
         },
       ];
     });
