@@ -17,7 +17,7 @@ import { RestaurantTable, TableStatus as BaseTableStatus } from '../../types/tab
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TableDashboard'>;
 
-type TableFilter = 'all' | BaseTableStatus;
+type TableFilter = 'all' | 'free' | 'partially_occupied' | 'full';
 
 export default function TableDashboardScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<TableFilter>('all');
@@ -90,26 +90,39 @@ export default function TableDashboardScreen({ navigation }: Props) {
     const statusStyle =
       item.status === 'free'
         ? styles.freeCard
-        : item.status === 'booked'
-        ? styles.reservedCard
-        : styles.occupiedCard;
+        : item.status === 'partially_occupied'
+        ? styles.partialCard
+        : styles.fullCard;
 
     const statusTextStyle =
       item.status === 'free'
         ? styles.freeText
-        : item.status === 'booked'
-        ? styles.reservedText
-        : styles.occupiedText;
+        : item.status === 'partially_occupied'
+        ? styles.partialText
+        : styles.fullText;
 
     return (
       <Pressable
         style={[styles.tableCard, statusStyle]}
         onPress={() => handleTablePress(item)}
       >
-        <Text style={styles.tableNumber}>Table {item.number}</Text>
-        <Text style={[styles.tableStatus, statusTextStyle]}>
-          {item.status.toUpperCase()}
+        <Text style={styles.tableNumber}>
+          {item.name ?? `Table ${item.number}`}
         </Text>
+
+        <Text style={[styles.tableStatus, statusTextStyle]}>
+          {item.status === 'free'
+            ? 'FREE'
+            : item.status === 'partially_occupied'
+            ? 'NOT FULL'
+            : 'FULL'}
+        </Text>
+
+        {item.capacity ? (
+          <Text style={styles.capacityText}>
+            Capacity: {item.capacity}
+          </Text>
+        ) : null}
       </Pressable>
     );
   };
@@ -141,18 +154,29 @@ export default function TableDashboardScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.filterRow}>
-        <FilterButton label="All" active={filter === 'all'} onPress={() => setFilter('all')} />
-        <FilterButton label="Free" active={filter === 'free'} onPress={() => setFilter('free')} />
         <FilterButton
-          label="Booked"
-          active={filter === 'booked'}
-          onPress={() => setFilter('booked')}
+          label="All"
+          active={filter === 'all'}
+          onPress={() => setFilter('all')}
         />
-        {/* <FilterButton
-          label="Occupied"
-          active={filter === 'booked'}
-          onPress={() => setFilter('booked')}
-        /> */}
+
+        <FilterButton
+          label="Free"
+          active={filter === 'free'}
+          onPress={() => setFilter('free')}
+        />
+
+        <FilterButton
+          label="Not Full"
+          active={filter === 'partially_occupied'}
+          onPress={() => setFilter('partially_occupied')}
+        />
+
+        <FilterButton
+          label="Full"
+          active={filter === 'full'}
+          onPress={() => setFilter('full')}
+        />
       </View>
 
       <FlatList
@@ -263,18 +287,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
   },
-  freeCard: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
-  },
-  reservedCard: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#FDBA74',
-  },
-  occupiedCard: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-  },
+  // reservedCard: {
+  //   backgroundColor: '#FFF7ED',
+  //   borderColor: '#FDBA74',
+  // },
+  // occupiedCard: {
+  //   backgroundColor: '#FEF2F2',
+  //   borderColor: '#FECACA',
+  // },
   tableNumber: {
     fontSize: 18,
     fontWeight: '700',
@@ -288,10 +308,38 @@ const styles = StyleSheet.create({
   freeText: {
     color: '#15803D',
   },
-  reservedText: {
-    color: '#C2410C',
+  // reservedText: {
+  //   color: '#C2410C',
+  // },
+  // occupiedText: {
+  //   color: '#B91C1C',
+  // },
+  freeCard: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#22C55E',
   },
-  occupiedText: {
-    color: '#B91C1C',
+
+  partialCard: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
+
+  fullCard: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#EF4444',
+  },
+
+  partialText: {
+    color: '#92400E',
+  },
+
+  fullText: {
+    color: '#991B1B',
+  },
+
+  capacityText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 6,
   },
 });

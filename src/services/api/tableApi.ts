@@ -8,18 +8,14 @@ type TablesResponse = {
     tablename: string;
     person_capicity: number;
     table_icon: string;
-    floor: number;
-    status: number;
+    floor: number | null;
+    status: number; // 1 = active, 0 = inactive
   }>;
 };
 
 function extractTableNumber(name: string, fallbackId: number): number {
   const match = name.match(/\d+/);
   return match ? Number(match[0]) : fallbackId;
-}
-
-function mapBackendStatus(status: number): 'free' | 'booked' {
-  return status === 1 ? 'free' : 'booked';
 }
 
 export async function getTables(token?: string): Promise<RestaurantTable[]> {
@@ -32,11 +28,13 @@ export async function getTables(token?: string): Promise<RestaurantTable[]> {
     { headers }
   );
 
-  return response.data.map((table) => ({
-    id: String(table.tableid),
-    number: extractTableNumber(table.tablename, table.tableid),
-    name: table.tablename,
-    capacity: table.person_capicity,
-    status: mapBackendStatus(table.status),
-  }));
+  return response.data
+    .filter((table) => table.status === 1) // only active tables
+    .map((table) => ({
+      id: String(table.tableid),
+      number: extractTableNumber(table.tablename, table.tableid),
+      name: table.tablename,
+      capacity: table.person_capicity,
+      status: 'free', // temporary until occupancy endpoint is ready
+    }));
 }

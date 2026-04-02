@@ -1,4 +1,4 @@
-export type TableStatus = 'free' | 'booked';
+export type TableStatus = 'free' | 'partially_occupied' |'full';
 
 export type RestaurantTable = {
   id: string;
@@ -6,5 +6,4 @@ export type RestaurantTable = {
   name?: string;
   capacity?: number;
   status: TableStatus;
-  bookingSlot?: string;
 };
