@@ -1,12 +1,39 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Image, StatusBar } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Image,
+  StatusBar,
+  useWindowDimensions,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFonts } from 'expo-font';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Welcome'>;
 
+const DESIGN_WIDTH = 360;
+const DESIGN_HEIGHT = 772;
+
 export default function WelcomeScreen({ navigation }: Props) {
+  const { width, height } = useWindowDimensions();
+
+  const [fontsLoaded] = useFonts({
+    Inspiration: require('../../../assets/fonts/Inspiration-Regular.ttf'),
+    InstrumentSerifRegular: require('../../../assets/fonts/InstrumentSerif-Regular.ttf'),
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  const scaleW = width / DESIGN_WIDTH;
+  const scaleH = height / DESIGN_HEIGHT;
+  const scale = Math.min(scaleW, scaleH);
+
   return (
     <LinearGradient
       colors={['#FFD3A9', '#F05822']}
@@ -16,28 +43,116 @@ export default function WelcomeScreen({ navigation }: Props) {
     >
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.logoContainer}>
+      <View
+        style={[
+          styles.logoContainer,
+          {
+            top: 58 * scaleH,
+          },
+        ]}
+      >
         <Image
           source={require('../../../assets/logo.png')}
-          style={styles.logo}
+          style={{
+            width: 112 * scaleW,
+            height: 53 * scaleW,
+          }}
           resizeMode="contain"
         />
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.welcome}>Welcome</Text>
-        <Text style={styles.subtitle}>You’re the heart of great service</Text>
+      <View style={styles.centerWrapper}>
+        <View
+          style={[
+            styles.content,
+            {
+              paddingHorizontal: 20 * scaleW,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.welcome,
+              {
+                fontSize: 92 * scale,
+                lineHeight: 92 * scale,
+              },
+            ]}
+          >
+            Welcome
+          </Text>
+
+          <Text
+            style={[
+              styles.subtitle,
+              {
+                marginTop: 12 * scaleH,
+                fontSize: 18 * scale,
+                lineHeight: 24 * scale,
+              },
+            ]}
+          >
+            You’re the heart of great service
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.bottomSection}>
+      <Image
+        source={require('../../../assets/waiter/waiter.png')}
+        style={[
+          styles.waiterImage,
+          {
+            width: width,
+            height: 376 * scaleH,
+          },
+        ]}
+        resizeMode="cover"
+      />
+
+      <View
+        style={[
+          styles.bottomSection,
+          {
+            bottom: 42 * scaleH,
+            paddingHorizontal: 24 * scaleW,
+          },
+        ]}
+      >
         <Pressable
-          style={styles.button}
+          style={[
+            styles.button,
+            {
+              height: 58 * scaleH,
+              borderRadius: 999,
+              marginBottom: 34 * scaleH,
+            },
+          ]}
           onPress={() => navigation.navigate('WaiterSelection')}
         >
-          <Text style={styles.buttonText}>Get Started</Text>
+          <Text
+            style={[
+              styles.buttonText,
+              {
+                fontSize: 17 * scale,
+                lineHeight: 22 * scale,
+              },
+            ]}
+          >
+            Get Started
+          </Text>
         </Pressable>
 
-        <Text style={styles.footerText}>Let’s make every guest feel special!</Text>
+        <Text
+          style={[
+            styles.footerText,
+            {
+              fontSize: 16 * scale,
+              lineHeight: 21 * scale,
+            },
+          ]}
+        >
+          Let’s make every guest feel special!
+        </Text>
       </View>
     </LinearGradient>
   );
@@ -46,57 +161,59 @@ export default function WelcomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 28,
-    justifyContent: 'space-between',
+    overflow: 'hidden',
   },
   logoContainer: {
+    position: 'absolute',
+    width: '100%',
     alignItems: 'center',
-    marginTop: 12,
+    zIndex: 3,
   },
-  logo: {
-    width: 150,
-    height: 70,
+  centerWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3,
   },
   content: {
+    width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
   },
   welcome: {
-    fontSize: 76,
     fontFamily: 'Inspiration',
     color: '#000000',
     textAlign: 'center',
-    lineHeight: 110,
   },
   subtitle: {
-    marginTop: 8,
-    fontSize: 16,
-    fontFamily: 'InstrumentSerif-Regular',
-    color: '#2A1208',
+    fontFamily: 'InstrumentSerifRegular',
+    color: '#1F130D',
     textAlign: 'center',
   },
+  waiterImage: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+    opacity: 0.18,
+  },
   bottomSection: {
-    alignItems: 'center',
+    position: 'absolute',
+    width: '100%',
+    zIndex: 4,
   },
   button: {
     width: '100%',
-    backgroundColor: '#992D06',
-    paddingVertical: 18,
-    borderRadius: 999,
+    backgroundColor: '#9E2C06',
     alignItems: 'center',
-    marginBottom: 28,
+    justifyContent: 'center',
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   footerText: {
-    fontSize: 16,
     color: '#FFFFFF',
     textAlign: 'center',
+    fontWeight: '400',
   },
 });
