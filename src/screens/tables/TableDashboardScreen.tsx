@@ -287,14 +287,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
   },
-  // reservedCard: {
-  //   backgroundColor: '#FFF7ED',
-  //   borderColor: '#FDBA74',
-  // },
-  // occupiedCard: {
-  //   backgroundColor: '#FEF2F2',
-  //   borderColor: '#FECACA',
-  // },
   tableNumber: {
     fontSize: 18,
     fontWeight: '700',
@@ -308,12 +300,6 @@ const styles = StyleSheet.create({
   freeText: {
     color: '#15803D',
   },
-  // reservedText: {
-  //   color: '#C2410C',
-  // },
-  // occupiedText: {
-  //   color: '#B91C1C',
-  // },
   freeCard: {
     backgroundColor: '#DCFCE7',
     borderColor: '#22C55E',
