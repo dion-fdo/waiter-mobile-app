@@ -6,6 +6,9 @@ import {
   Pressable,
   Alert,
   TextInput,
+  Image,
+  StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
@@ -23,6 +26,7 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
   } = useAppContext();
 
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);  //hide password
 
   const handleLogin = async () => {
     if (!password.trim()) {
@@ -46,41 +50,157 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
     }
   };
 
+  const DESIGN_WIDTH = 360;
+  const DESIGN_HEIGHT = 772;
+
+  const { width, height } = useWindowDimensions();
+
+  const scaleW = width / DESIGN_WIDTH;
+  const scaleH = height / DESIGN_HEIGHT;
+  const scale = Math.min(scaleW, scaleH);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Enter Password</Text>
-      <Text style={styles.subtitle}>{selectedWaiter?.email || waiterName}</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Enter password"
-        placeholderTextColor="#9CA3AF"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      <Pressable style={styles.button} onPress={handleLogin} disabled={isLoading}>
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Logging in...' : 'Login'}
+      <StatusBar barStyle="dark-content" />
+      <View
+        style={[
+          styles.logoContainer,
+          { top: 58 * scaleH },
+        ]}
+      >
+        <Image
+          source={require('../../../assets/logo.png')}
+          style={{
+            width: 130 * scaleW,
+            height: 62 * scaleW,
+          }}
+          resizeMode="contain"
+        />
+      </View>
+      <View
+        style={[
+          styles.formArea,
+          {
+            top: 190 * scaleH,
+            paddingHorizontal: 28 * scaleW,
+          },
+        ]}
+      >
+        <Text style={[styles.title, { fontSize: 24 * scale }]}>
+          Enter Password
         </Text>
-      </Pressable>
 
-      <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>Back</Text>
-      </Pressable>
+        <Text style={[styles.subtitle, { fontSize: 14 * scale }]}>
+          {selectedWaiter?.email || waiterName}
+        </Text>
+
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                fontSize: 14 * scale,
+                paddingVertical: 14 * scaleH,
+              },
+            ]}
+            placeholder="Enter password"
+            placeholderTextColor="#9CA3AF"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          <Pressable
+            style={styles.eyeButton}
+            onPress={() => setShowPassword((prev) => !prev)}
+          >
+            <Image
+              source={
+                showPassword
+                  ? require('../../../assets/icons/eye.png')
+                  : require('../../../assets/icons/hide.png') 
+              }
+              style={{
+                width: 22 * scale,
+                height: 22 * scale,
+                tintColor: '#F05822',
+              }}
+              resizeMode="contain"
+            />
+          </Pressable>
+        </View>
+      </View>
+
+      {true && (
+        <View
+          style={[
+            styles.bottomSection,
+            {
+              bottom: 42 * scaleH,
+              paddingHorizontal: 28 * scaleW,
+            },
+          ]}
+        >
+          <Pressable
+            style={[
+              styles.button,
+              {
+                height: 56 * scaleH,
+                borderRadius: 999,
+                backgroundColor: password.trim()
+                  ? '#F97316'
+                  : '#FDBA74',
+              },
+            ]}
+            onPress={handleLogin}
+            disabled={isLoading || !password.trim()}
+          >
+            <Text style={[styles.buttonText, { fontSize: 16 * scale }]}>
+              {isLoading ? 'Logging in...' : 'Login'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+          
+      <Image
+        source={require('../../../assets/waiter/waiter.png')}
+        style={[
+          styles.waiterImage,
+          {
+            width: width * 0.96,
+            height: 390 * scaleH,
+          },
+        ]}
+        resizeMode="contain"
+      />
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    justifyContent: 'center',
+    backgroundColor: '#F4F4F4',
+    overflow: 'hidden',
+  },
+  logoContainer: {
+    position: 'absolute',
+    width: '100%',
+    alignItems: 'center',
+    zIndex: 3,
+  },
+  formArea: {
+    position: 'absolute',
+    width: '100%',
+    zIndex: 5,
+  },
+  waiterImage: {
+    position: 'absolute',
+    right: -8,
+    bottom: 0,
+    opacity: 0.12,
+    zIndex: 1,
   },
   title: {
     fontSize: 24,
@@ -108,9 +228,9 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#F97316',
-    paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center', 
   },
   buttonText: {
     color: '#FFFFFF',
@@ -126,5 +246,20 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 15,
     fontWeight: '600',
+  },
+  inputWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 16,
+    justifyContent: 'center',
+    transform: [{ translateY: -11 }],
+  },
+  bottomSection: {
+    position: 'absolute',
+    width: '100%',
+    zIndex: 6,
   },
 });
