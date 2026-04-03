@@ -27,6 +27,8 @@ type AddToCartInput = {
 type TableOrderDraft = {
   table: RestaurantTable;
   cartItems: CartItem[];
+  selectedCustomer: Customer | null;
+  selectedPersonCount: number;
 };
 
 type TableOrderDraftMap = Record<string, TableOrderDraft>;
@@ -186,8 +188,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (tableDraft) {
         setCartItems(tableDraft.cartItems ?? []);
+        setSelectedCustomer(tableDraft.selectedCustomer ?? null);
+        setSelectedPersonCount(tableDraft.selectedPersonCount ?? 1);
       } else {
         setCartItems([]);
+        setSelectedCustomer(null);
+        setSelectedPersonCount(1);
       }
     } catch (error) {
       console.log('Failed to load draft for table', error);
@@ -212,14 +218,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const drafts = await getAllTableDraftsFromStorage();
 
-        if (cartItems.length === 0) {
-          delete drafts[selectedTable.id];
-        } else {
-          drafts[selectedTable.id] = {
-            table: selectedTable,
-            cartItems,
-          };
-        }
+        drafts[selectedTable.id] = {
+        table: selectedTable,
+        cartItems,
+        selectedCustomer,
+        selectedPersonCount,
+      };
 
         await saveAllTableDraftsToStorage(drafts);
       } catch (error) {
@@ -228,7 +232,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     saveCurrentTableDraft();
-  }, [selectedTable, cartItems]);
+  }, [selectedTable, cartItems, selectedCustomer, selectedPersonCount]);
 
   const ensureValidToken = async () => {
     if (authToken && tokenExpiryTime && Date.now() < tokenExpiryTime - 30000) {
@@ -321,7 +325,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const startNewOrderSession = async (table: RestaurantTable) => {
     setSelectedTable(table);
-    setSelectedPersonCount(1);
     setPlacedOrder(null);
     setEditOrderItems([]);
     await loadDraftForTable(table);

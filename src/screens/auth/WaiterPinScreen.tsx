@@ -10,6 +10,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useAppContext } from '../../context/AppContext';
+import { waiterLogin } from '../../services/api/authApi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WaiterPin'>;
 
@@ -18,6 +19,7 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
 
   const {
     selectedWaiter,
+    setSelectedWaiter,
     isLoading,
     setIsLoading,
   } = useAppContext();
@@ -33,14 +35,29 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
     try {
       setIsLoading(true);
 
-      if (!selectedWaiter) {
+      if (!selectedWaiter?.email) {
         Alert.alert('Waiter not selected');
         return;
       }
 
+      const response = await waiterLogin({
+        email: selectedWaiter.email,
+        password: password.trim(),
+      });
+
+      setSelectedWaiter({
+        id: String(response.user.id),
+        waiterId: String(response.user.waiter_id),
+        email: response.user.email,
+        name: response.user.email,
+      });
+
       navigation.navigate('TableDashboard');
-    } catch (error) {
-      Alert.alert('Login failed');
+    } catch (error: any) {
+      Alert.alert(
+        'Login failed',
+        error?.message || 'Invalid email or password'
+      );
     } finally {
       setIsLoading(false);
     }
