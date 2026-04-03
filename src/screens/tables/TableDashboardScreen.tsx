@@ -8,12 +8,13 @@ import {
   useWindowDimensions,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { getTables } from '../../services/api/tableApi';
 import { useAppContext } from '../../context/AppContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
-import { RestaurantTable, TableStatus as BaseTableStatus } from '../../types/table';
+import { RestaurantTable} from '../../types/table';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TableDashboard'>;
 
@@ -22,10 +23,20 @@ type TableFilter = 'all' | 'free' | 'partially_occupied' | 'full';
 export default function TableDashboardScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<TableFilter>('all');
   const { width } = useWindowDimensions();
-  const { setSelectedTable, startNewOrderSession, logout, ensureValidToken} = useAppContext();
+  const {
+    setSelectedTable,
+    startNewOrderSession,
+    logout,
+    ensureValidToken,
+    selectedPersonCount,
+    setSelectedPersonCount,
+  } = useAppContext();
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [loadingTables, setLoadingTables] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [personCountModalVisible, setPersonCountModalVisible] = useState(false);
+  const [pendingTable, setPendingTable] = useState<RestaurantTable | null>(null);
 
   const numColumns = width >= 900 ? 4 : width >= 600 ? 3 : 2;
 
@@ -35,14 +46,40 @@ export default function TableDashboardScreen({ navigation }: Props) {
   }, [filter, tables]);
 
   const handleTablePress = async (table: RestaurantTable) => {
-    if (table.status === 'free') {
-      await startNewOrderSession(table);
-      navigation.navigate('CustomerSelection');
+  if (table.status === 'full') {
+    setSelectedTable(table);
+    navigation.navigate('OrderStatus');
+    return;
+  }
+
+  const maxAllowed = getMaxAllowedPeople(table);
+    if (maxAllowed <= 0) {
+      Alert.alert('Table is full');
       return;
     }
 
-    setSelectedTable(table);
-    navigation.navigate('OrderStatus');
+    setPendingTable(table);
+    setSelectedPersonCount(1);
+    setPersonCountModalVisible(true);
+  };
+
+  const handleConfirmPersonCount = async () => {
+    if (!pendingTable) return;
+
+    await startNewOrderSession(pendingTable);
+    setPersonCountModalVisible(false);
+    navigation.navigate('CustomerSelection');
+  };
+
+  const handleDecreasePersonCount = () => {
+    setSelectedPersonCount(Math.max(1, selectedPersonCount - 1));
+  };
+
+  const handleIncreasePersonCount = () => {
+    if (!pendingTable) return;
+
+    const maxAllowed = getMaxAllowedPeople(pendingTable);
+    setSelectedPersonCount(Math.min(maxAllowed, selectedPersonCount + 1));
   };
 
   const loadTables = async () => {
@@ -53,6 +90,17 @@ export default function TableDashboardScreen({ navigation }: Props) {
     } catch (error: any) {
       Alert.alert('Failed to load tables', error?.message || 'Please try again');
     }
+  };
+
+  const getMaxAllowedPeople = (table: RestaurantTable) => {
+    if (
+      typeof table.remainingCapacity === 'number' &&
+      table.remainingCapacity > 0
+    ) {
+      return table.remainingCapacity;
+    }
+
+    return table.capacity ?? 1;
   };
 
   useEffect(() => {
@@ -123,6 +171,18 @@ export default function TableDashboardScreen({ navigation }: Props) {
             Capacity: {item.capacity}
           </Text>
         ) : null}
+
+        {typeof item.occupiedPeople === 'number' ? (
+          <Text style={styles.capacityText}>
+            Occupied: {item.occupiedPeople}
+          </Text>
+        ) : null}
+
+        {typeof item.remainingCapacity === 'number' ? (
+          <Text style={styles.capacityText}>
+            Remaining: {item.remainingCapacity}
+          </Text>
+        ) : null}
       </Pressable>
     );
   };
@@ -191,6 +251,61 @@ export default function TableDashboardScreen({ navigation }: Props) {
         refreshing={refreshing}
         onRefresh={handleRefresh}
       />
+
+      <Modal
+        visible={personCountModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPersonCountModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Table Person Count</Text>
+
+            {pendingTable ? (
+              <Text style={styles.modalSubText}>
+                Max allowed: {getMaxAllowedPeople(pendingTable)}
+              </Text>
+            ) : null}
+
+            <View style={styles.personCountRow}>
+              <Pressable
+                style={styles.personCountButton}
+                onPress={handleDecreasePersonCount}
+              >
+                <Text style={styles.personCountButtonText}>-</Text>
+              </Pressable>
+
+              <View style={styles.personCountValueBox}>
+                <Text style={styles.personCountValueText}>
+                  {selectedPersonCount}
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.personCountButton}
+                onPress={handleIncreasePersonCount}
+              >
+                <Text style={styles.personCountButtonText}>+</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={styles.confirmPersonButton}
+              onPress={handleConfirmPersonCount}
+            >
+              <Text style={styles.confirmPersonButtonText}>Continue</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.cancelPersonButton}
+              onPress={() => setPersonCountModalVisible(false)}
+            >
+              <Text style={styles.cancelPersonButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -327,5 +442,103 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginTop: 6,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+
+  modalSubText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 24,
+  },
+
+  personCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+    marginBottom: 28,
+  },
+
+  personCountButton: {
+    width: 74,
+    height: 66,
+    borderRadius: 14,
+    backgroundColor: '#F97316',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  personCountButtonText: {
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 36,
+  },
+
+  personCountValueBox: {
+    minWidth: 74,
+    height: 66,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+
+  personCountValueText: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: '#111827',
+  },
+
+  confirmPersonButton: {
+    width: '100%',
+    backgroundColor: '#F97316',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  confirmPersonButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  cancelPersonButton: {
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+
+  cancelPersonButtonText: {
+    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

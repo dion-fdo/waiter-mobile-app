@@ -58,6 +58,9 @@ type AppContextType = {
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 
+  selectedPersonCount: number;
+  setSelectedPersonCount: React.Dispatch<React.SetStateAction<number>>;
+
   selectedCustomer: Customer | null;
   setSelectedCustomer: (customer: Customer | null) => void;
 
@@ -124,6 +127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [tokenExpiryTime, setTokenExpiryTime] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedPersonCount, setSelectedPersonCount] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
@@ -300,6 +304,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedTable(null);
     setAuthToken(null);
     setTokenExpiryTime(null);
+    setSelectedPersonCount(1);
     setSelectedCustomer(null);
     setCartItems([]);
     setPlacedOrder(null);
@@ -316,6 +321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const startNewOrderSession = async (table: RestaurantTable) => {
     setSelectedTable(table);
+    setSelectedPersonCount(1);
     setPlacedOrder(null);
     setEditOrderItems([]);
     await loadDraftForTable(table);
@@ -407,6 +413,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       logout,
 
+      selectedPersonCount,
+      setSelectedPersonCount,
+
       selectedCustomer,
       setSelectedCustomer,
 
@@ -447,6 +456,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ensureValidToken,
       logout,
       isLoading,
+      selectedPersonCount,
       selectedCustomer,
       cartItems,
       subtotal,
