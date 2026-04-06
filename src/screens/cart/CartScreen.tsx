@@ -39,9 +39,14 @@ export default function CartScreen({ navigation }: Props) {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Yes',
-          onPress: () => {
-            placeOrder();
-            navigation.navigate('OrderDetails');
+          onPress: async () => {
+            const success = await placeOrder();
+
+            if (success) {
+              navigation.navigate('OrderDetails');
+            } else {
+              Alert.alert('Order placement failed');
+            }
           },
         },
       ]

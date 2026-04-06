@@ -27,9 +27,18 @@ export default function OrderDetailsScreen({ navigation }: Props) {
         <Text style={styles.itemMeta}>
           Qty: {item.qty} × LKR {item.price}
         </Text>
-        {item.size ? <Text style={styles.itemSubMeta}>Size: {item.size}</Text> : null}
-        {item.addOns && item.addOns.length > 0 ? (
-          <Text style={styles.itemSubMeta}>Add-ons: {item.addOns.join(', ')}</Text>
+        {item.variantName ? (
+          <Text style={styles.itemSubMeta}>Variant: {item.variantName}</Text>
+        ) : null}
+
+        {item.selectedAddOns && item.selectedAddOns.length > 0 ? (
+          <Text style={styles.itemSubMeta}>
+            Add-ons: {item.selectedAddOns.map((addOn) => addOn.addOnName).join(', ')}
+          </Text>
+        ) : null}
+
+        {item.note ? (
+          <Text style={styles.itemSubMeta}>Note: {item.note}</Text>
         ) : null}
       </View>
 

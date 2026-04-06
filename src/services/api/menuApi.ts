@@ -22,6 +22,7 @@ type BackendAddOn = {
 type BackendFoodItem = {
   id: number;
   name: string;
+  product_image?: string;
   category_id?: number;
   category_name?: string;
   component?: string;
@@ -60,6 +61,9 @@ function mapFoodItem(item: BackendFoodItem): MenuItem {
   return {
     id: String(item.id),
     name: item.name,
+    image: item.product_image
+      ? encodeURI(`https://cuisine.kernelencode.com/${item.product_image}`)
+      : undefined,
     categoryId: item.category_id ? String(item.category_id) : undefined,
     categoryName: item.category_name,
     component: item.component,

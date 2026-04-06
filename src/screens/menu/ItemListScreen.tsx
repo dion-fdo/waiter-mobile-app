@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
@@ -82,6 +83,15 @@ export default function ItemListScreen({ navigation, route }: Props) {
   const renderItemCard = ({ item }: { item: MenuItem }) => (
     <View style={styles.card}>
       <View style={styles.itemInfo}>
+        <Image
+          source={
+            item.image
+              ? { uri: item.image }
+              : require('../../../assets/default-food.png')
+          }
+          style={styles.foodImage}
+          resizeMode="cover"
+        />
         <Text style={styles.itemName}>{item.name}</Text>
 
         <Text style={styles.itemPrice}>
@@ -265,5 +275,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#111827',
     marginBottom: 12,
+  },
+  foodImage: {
+    width: '100%',
+    height: 110,
+    borderRadius: 12,
+    marginBottom: 10,
   },
 });
