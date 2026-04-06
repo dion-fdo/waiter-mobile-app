@@ -117,14 +117,17 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
     navigation.navigate('Category');
   };
 
+  //function to add customer
   const handleAddCustomer = async () => {
     let valid = true;
 
+    //check whether customer name is empty
     if (!newCustomerName.trim()) {
       setNameError('Customer name is required!');
       valid = false;
     }
 
+    //check whether customer phone number is empty with validations
     if (!newCustomerPhone.trim()) {
       setPhoneError('Phone number is required!');
       valid = false;
@@ -175,6 +178,7 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
     );
   }, [searchText, customers]);
 
+  //reset input fields after closing modal
   const closeModal = () => {
     setNewCustomerName('');
     setNewCustomerPhone('');
@@ -548,13 +552,14 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
                   const numericOnly = text.replace(/[^0-9]/g, '');
                   setNewCustomerPhone(numericOnly);
 
+                  //checks if number length is 0
                   if (numericOnly.length === 0) {
                     setPhoneError('');
-                  } else if (!/^\d+$/.test(numericOnly)) {
+                  } else if (!/^\d+$/.test(numericOnly)) {         //checks whether non numeric characters are included
                     setPhoneError('Only numbers are allowed.');
-                  } else if (numericOnly.length < 10 || numericOnly.length > 10) {
+                  } else if (numericOnly.length < 10 || numericOnly.length > 10) {           //validates phone number length
                     setPhoneError('Phone number must be exactly 10 digits.');
-                  } else if (!/^0[0-9]{9}$/.test(numericOnly)) {
+                  } else if (!/^0[0-9]{9}$/.test(numericOnly)) {                            //allowed phone number format
                     setPhoneError('Phone number must start with 0 (e.g. 07XXXXXXXX).');
                   } else {
                     setPhoneError('');
