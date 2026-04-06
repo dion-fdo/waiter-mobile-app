@@ -53,6 +53,8 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [nameError, setNameError] = useState('');
 
   const walkInCustomer: Customer = {
     id: '1',
@@ -116,10 +118,23 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
   };
 
   const handleAddCustomer = async () => {
-    if (!newCustomerName.trim() || !newCustomerPhone.trim()) {
-      Alert.alert('Enter customer name and phone!');
-      return;
+    let valid = true;
+
+    if (!newCustomerName.trim()) {
+      setNameError('Customer name is required!');
+      valid = false;
     }
+
+    if (!newCustomerPhone.trim()) {
+      setPhoneError('Phone number is required!');
+      valid = false;
+    } else if (!/^0[0-9]{9}$/.test(newCustomerPhone.trim())) {
+      setPhoneError('Enter a valid 10-digit phone number starting with 0.');
+      valid = false;
+    }
+
+    if (!valid) return;
+
     try {
       setCreatingCustomer(true);
       const token = await ensureValidToken();
@@ -141,7 +156,7 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
       await loadCustomers();
       setNewCustomerName('');
       setNewCustomerPhone('');
-      setAddModalVisible(false);
+      closeModal();
       Alert.alert('Success', 'Customer created successfully');
     } catch (error: any) {
       Alert.alert('Failed to create customer', error?.message || 'Please try again');
@@ -159,6 +174,14 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
         c.phone.includes(keyword)
     );
   }, [searchText, customers]);
+
+  const closeModal = () => {
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+    setNameError('');
+    setPhoneError('');
+    setAddModalVisible(false);
+  };
 
   const renderCustomer = ({ item }: { item: Customer }) => {
     const isSelected = selectedCustomer?.id === item.id;
@@ -430,12 +453,12 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
         visible={addModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setAddModalVisible(false)}
+        onRequestClose={() => closeModal()}
       >
         <View style={styles.modalOverlay}>
           <Pressable
             style={styles.modalBackdrop}
-            onPress={() => setAddModalVisible(false)}
+            onPress={() => closeModal()}
           />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -478,19 +501,33 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
                     borderRadius: 12 * scale,
                     paddingHorizontal: 14 * scaleW,
                     paddingVertical: 12 * scaleH,
-                    marginBottom: 16 * scaleH,
+                    marginBottom: nameError ? 4 * scaleH : 16 * scaleH,
+                    borderColor: nameError ? '#EF4444' : '#E5E7EB',
                   },
                 ]}
                 placeholder="Enter customer name"
                 placeholderTextColor="#9CA3AF"
                 value={newCustomerName}
-                onChangeText={setNewCustomerName}
+                onChangeText={(text) => {
+                  setNewCustomerName(text);
+                  if (text.trim().length > 0) setNameError('');
+                }}
               />
+              {nameError ? (
+                <Text style={[styles.validationError, { fontSize: 12 * scale, marginBottom: 12 * scaleH }]}>
+                  {nameError}
+                </Text>
+              ) : null}
 
               {/* Phone input */}
               <Text style={[styles.modalLabel, { fontSize: 13 * scale, marginBottom: 6 * scaleH }]}>
                 Phone Number
               </Text>
+              {phoneError ? (
+                <Text style={[styles.validationError, { fontSize: 12 * scale, marginBottom: 4 * scaleH }]}>
+                  {phoneError}
+                </Text>
+              ) : null}
               <TextInput
                 style={[
                   styles.modalInput,
@@ -500,13 +537,31 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
                     paddingHorizontal: 14 * scaleW,
                     paddingVertical: 12 * scaleH,
                     marginBottom: 24 * scaleH,
+                    borderColor: phoneError ? '#EF4444' : '#E5E7EB',
                   },
                 ]}
-                placeholder="Enter phone number"
+                placeholder="07XXXXXXXX"
                 placeholderTextColor="#9CA3AF"
                 value={newCustomerPhone}
-                onChangeText={setNewCustomerPhone}
+                onChangeText={(text) => {
+                  // Removes any non-numeric characters immediately
+                  const numericOnly = text.replace(/[^0-9]/g, '');
+                  setNewCustomerPhone(numericOnly);
+
+                  if (numericOnly.length === 0) {
+                    setPhoneError('');
+                  } else if (!/^\d+$/.test(numericOnly)) {
+                    setPhoneError('Only numbers are allowed.');
+                  } else if (numericOnly.length < 10 || numericOnly.length > 10) {
+                    setPhoneError('Phone number must be exactly 10 digits.');
+                  } else if (!/^0[0-9]{9}$/.test(numericOnly)) {
+                    setPhoneError('Phone number must start with 0 (e.g. 07XXXXXXXX).');
+                  } else {
+                    setPhoneError('');
+                  }
+                }}
                 keyboardType="phone-pad"
+                maxLength={10}
               />
 
               {/* Add button */}
@@ -539,7 +594,7 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
                 onPress={() => {
                   setNewCustomerName('');
                   setNewCustomerPhone('');
-                  setAddModalVisible(false);
+                  closeModal();
                 }}
               >
                 <Text style={[styles.modalCancelButtonText, { fontSize: 16 * scale }]}>
@@ -710,5 +765,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  validationError: {
+    color: '#EF4444',
+    fontWeight: '500',
   },
 });
