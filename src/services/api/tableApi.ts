@@ -13,6 +13,18 @@ type TableAvailabilityResponse = {
   }>;
 };
 
+type TablesResponse = {
+  status: string;
+  data: Array<{
+    tableid: number;
+    tablename: string;
+    person_capicity: number;
+    table_icon: string;
+    floor: number | null;
+    status: 0 | 1;
+  }>;
+};
+
 function extractTableNumber(name: string, fallbackId: number): number {
   const match = name.match(/\d+/);
   return match ? Number(match[0]) : fallbackId;
@@ -31,18 +43,26 @@ export async function getTables(token?: string): Promise<RestaurantTable[]> {
     ? { Authorization: `Bearer ${token}` }
     : undefined;
 
-  const response = await apiClient.get<TableAvailabilityResponse>(
-    '/api/table-availability',
-    { headers }
+  const [availabilityResponse, tablesResponse] = await Promise.all([
+    apiClient.get<TableAvailabilityResponse>('/api/table-availability', { headers }),
+    apiClient.get<TablesResponse>('/api/tables', { headers }),
+  ]);
+
+  const activeTableIds = new Set(
+    tablesResponse.data
+      .filter((table) => table.status !== 0)
+      .map((table) => table.tableid)
   );
 
-  return response.data.map((table) => ({
-    id: String(table.table_id),
-    number: extractTableNumber(table.table_name, table.table_id),
-    name: table.table_name,
-    capacity: table.capacity,
-    occupiedPeople: table.occupied_people,
-    remainingCapacity: table.remaining_capacity,
-    status: mapAvailabilityStatus(table.status),
-  }));
+  return availabilityResponse.data
+    .filter((table) => activeTableIds.has(table.table_id))
+    .map((table) => ({
+      id: String(table.table_id),
+      number: extractTableNumber(table.table_name, table.table_id),
+      name: table.table_name,
+      capacity: table.capacity,
+      occupiedPeople: table.occupied_people,
+      remainingCapacity: table.remaining_capacity,
+      status: mapAvailabilityStatus(table.status),
+    }));
 }

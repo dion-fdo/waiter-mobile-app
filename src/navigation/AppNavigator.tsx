@@ -39,6 +39,7 @@ export default function AppNavigator() {
       <Stack.Navigator
         initialRouteName="Welcome"
         screenOptions={{
+          headerShown: false,
           headerTitleAlign: 'center',
         }}
       >

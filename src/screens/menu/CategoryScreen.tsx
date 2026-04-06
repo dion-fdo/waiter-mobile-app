@@ -35,6 +35,11 @@ export default function CategoryScreen({ navigation }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
 
+  const displayCategories: Category[] = [
+    { id: 'all', name: 'All' },
+    ...categories,
+  ];
+
   const loadCategories = async () => {
     try {
       const token = await ensureValidToken();
@@ -89,7 +94,7 @@ export default function CategoryScreen({ navigation }: Props) {
 
       <FlatList
         key={numColumns}
-        data={categories}
+        data={displayCategories}
         keyExtractor={(item) => item.id}
         renderItem={renderCategory}
         numColumns={numColumns}

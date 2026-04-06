@@ -44,8 +44,15 @@ export default function ItemListScreen({ navigation, route }: Props) {
         return;
       }
 
+      if (categoryId === 'all') {
+        const data = await searchFoods('', token || undefined);
+        setItems(data);
+        return;
+      }
+
       const data = await getFoodsByCategory(categoryId, token || undefined);
       setItems(data);
+
     } catch (error: any) {
       Alert.alert(
         'Failed to load menu items',
