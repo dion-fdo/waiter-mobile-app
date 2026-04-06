@@ -6,6 +6,7 @@ import { MenuItem } from '../types/menuItem';
 import { getM2MToken } from '../services/api/authApi';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Customer } from '../types/customer';
+import { createOrder } from '../services/api/orderApi';
 
 
 type ItemSize = string;
@@ -47,7 +48,7 @@ type PlacedOrder = {
 type AppContextType = {
   selectedWaiter: Waiter | null;
   selectedTable: RestaurantTable | null;
-  //
+  
   authToken: string | null;
   setAuthToken: (token: string | null) => void;
 
@@ -86,7 +87,7 @@ type AppContextType = {
   removeCartItem: (id: string) => void;
   clearCart: () => void;
 
-  placeOrder: () => void;
+  placeOrder: () => Promise<boolean>;
 
   startEditPlacedOrder: () => void;
   updateEditOrderItemQty: (id: string, type: 'inc' | 'dec') => void;
@@ -135,7 +136,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [editOrderItems, setEditOrderItems] = useState<CartItem[]>([]);
 
-  const [serviceCharge, setServiceCharge] = useState(300);
+  const [serviceCharge, setServiceCharge] = useState(0);
 
   const fetchM2MToken = async () => {
   const response = await getM2MToken({
@@ -330,23 +331,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await loadDraftForTable(table);
   };
 
-  const placeOrder = () => {
-    const snapshotItems = cloneCartItems(cartItems);
+  const placeOrder = async (): Promise<boolean> => {
+    try {
+      if (!selectedTable) {
+        throw new Error('Table not selected');
+      }
 
-    setPlacedOrder({
-      id: `TEMP-ORDER-${Date.now()}`,
-      table: selectedTable,
-      waiter: selectedWaiter,
-      items: snapshotItems,
-      subtotal,
-      serviceCharge,
-      total,
-    });
+      if (!selectedWaiter?.waiterId) {
+        throw new Error('Waiter not selected');
+      }
 
-    if (selectedTable) {
-      clearDraftForTable(selectedTable.id);
+      if (!selectedCustomer?.id) {
+        throw new Error('Customer not selected');
+      }
+
+      if (cartItems.length === 0) {
+        throw new Error('Cart is empty');
+      }
+
+      const token = await ensureValidToken();
+      const today = new Date().toISOString().split('T')[0];
+
+      const payload = {
+        ctypeid: 1,
+        customer_id: Number(selectedCustomer.id),
+        order_date: today,
+        waiter_id: Number(selectedWaiter.waiterId),
+        tableid: Number(selectedTable.id),
+        room_id: null,
+        reservation_id: null,
+        customernote: '',
+        grandtotal: subtotal,
+        tablemember: selectedPersonCount,
+        items: cartItems.map((item) => ({
+          food_id: Number(item.menuId),
+          variant_id: Number(item.variantId),
+          qty: item.qty,
+          price: item.price,
+          addonsid:
+            item.selectedAddOns?.map((addOn) => addOn.addOnId).join(',') ?? '',
+          addonsqty:
+            item.selectedAddOns?.map((addOn) => String(addOn.qty)).join(',') ?? '',
+          itemnote: item.note ?? '',
+          isgroup: 0,
+        })),
+      };
+
+      const response = await createOrder(payload, token || undefined);
+
+      const snapshotItems = cloneCartItems(cartItems);
+
+      setPlacedOrder({
+        id: String(response.orderid),
+        table: selectedTable,
+        waiter: selectedWaiter,
+        items: snapshotItems,
+        subtotal,
+        serviceCharge: 0,
+        total: subtotal,
+      });
+
+      await clearDraftForTable(selectedTable.id);
+      setCartItems([]);
+
+      return true;
+    } catch (error) {
+      console.error('placeOrder failed', error);
+      return false;
     }
   };
+
 
   const startEditPlacedOrder = () => {
     if (!placedOrder) {
