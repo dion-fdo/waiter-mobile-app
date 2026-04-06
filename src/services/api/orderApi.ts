@@ -1,18 +1,46 @@
 import { apiClient } from './client';
 
-export type PlaceOrderItemPayload = {
-  menuItemId: string;
+export type OrderItemPayload = {
+  food_id: number;
+  variant_id: number;
   qty: number;
-  size?: string;
-  addOns?: string[];
+  price: number;
+  addonsid: string;
+  addonsqty: string;
+  itemnote: string;
+  isgroup: number;
 };
 
-export type PlaceOrderPayload = {
-  tableId: string;
-  waiterId: string;
-  items: PlaceOrderItemPayload[];
+export type CreateOrderPayload = {
+  ctypeid: number;
+  customer_id: number;
+  order_date: string;
+  waiter_id: number;
+  tableid: number;
+  room_id: null;
+  reservation_id: null;
+  customernote: string;
+  grandtotal: number;
+  tablemember: number;
+  items: OrderItemPayload[];
 };
 
-export async function placeOrder(payload: PlaceOrderPayload) {
-  return apiClient.post('/orders', payload);
+export type CreateOrderResponse = {
+  status: string;
+  orderid: number;
+};
+
+export async function createOrder(
+  payload: CreateOrderPayload,
+  token?: string
+) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  return apiClient.post<CreateOrderResponse>(
+    '/api/order-create',
+    payload,
+    { headers }
+  );
 }
