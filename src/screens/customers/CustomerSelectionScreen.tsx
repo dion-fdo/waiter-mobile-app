@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   useWindowDimensions,
+  Image
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
@@ -251,7 +252,17 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
             >
               {selectedCustomer?.name || 'Walkin'}
             </Text>
-            <Text style={[styles.dropdownArrow, { fontSize: 18 * scale }]}>▼</Text>
+            <View style={styles.dropdownArrow}>
+              <Image
+                source={require('../../../assets/icons/arrow-down.png')}
+                style={{
+                  width: 32 * scale,
+                  height: 32 * scale,
+                  tintColor: '#F05A22',
+                }}
+                resizeMode="contain"
+              />
+            </View>
           </Pressable>
         ) : (
 
@@ -266,30 +277,43 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
               },
             ]}
           >
-            <View
+          <View
+            style={[
+              styles.openSearchBar,
+              {
+                borderRadius: 12 * scale,
+                paddingHorizontal: 12 * scaleW,
+                minHeight: 50 * scaleH,
+                marginBottom: 10 * scaleH,
+                flexDirection: 'row',        
+                alignItems: 'center',       
+              },
+            ]}
+          >
+            <TextInput
               style={[
-                styles.openSearchBar,
-                {
-                  borderRadius: 12 * scale,
-                  paddingHorizontal: 12 * scaleW,
-                  minHeight: 50 * scaleH,
-                  marginBottom: 10 * scaleH,
-                  justifyContent: 'center',
-                },
+                styles.searchInputField,
+                { fontSize: 14 * scale, paddingVertical: 10 * scaleH },
               ]}
-            >
-              <TextInput
-                style={[
-                  styles.searchInputField,
-                  { fontSize: 14 * scale, paddingVertical: 10 * scaleH },
-                ]}
-                placeholder={selectedCustomer?.name || 'Search by name or phone...'}
-                placeholderTextColor="#888888"
-                value={searchText}
-                onChangeText={setSearchText}
-                autoFocus
+              placeholder={selectedCustomer?.name || 'Search by name or phone...'}
+              placeholderTextColor="#888888"
+              value={searchText}
+              onChangeText={setSearchText}
+              autoFocus
+            />
+
+            <View style={styles.searchIconWrap}>
+              <Image
+                source={require('../../../assets/icons/search.png')}
+                style={{
+                  width: 20 * scale,
+                  height: 20 * scale,
+                  tintColor: '#F05A22',
+                }}
+                resizeMode="contain"
               />
             </View>
+          </View>
 
             <FlatList
               data={filteredCustomers}
@@ -348,7 +372,17 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
               }}
               hitSlop={12}
             >
-              <Text style={[styles.dropdownArrow, { fontSize: 18 * scale }]}>▲</Text>
+              <View style={styles.dropdownArrow}>
+                <Image
+                  source={require('../../../assets/icons/arrow-up.png')}
+                  style={{
+                    width: 32 * scale,
+                    height: 32 * scale,
+                    tintColor: '#F05A22',
+                  }}
+                  resizeMode="contain"
+                />
+              </View>
             </Pressable>
           </View>
         )}
@@ -671,5 +705,10 @@ const styles = StyleSheet.create({
   modalCancelButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  searchIconWrap: {
+    marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
