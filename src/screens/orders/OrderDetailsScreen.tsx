@@ -14,7 +14,6 @@ import { useAppContext } from '../../context/AppContext';
 import {
   deleteOrder,
   getOrderDetails,
-  OrderDetailsItemResponse,
   OrderDetailsResponse,
 } from '../../services/api/orderApi';
 
@@ -22,7 +21,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
 export default function OrderDetailsScreen({ navigation, route }: Props) {
   const routeOrderId = route.params?.orderId;
-  const { placedOrder, startEditPlacedOrder, ensureValidToken } = useAppContext();
+  const { placedOrder, startEditPlacedOrder, ensureValidToken, selectedTable } = useAppContext();
+
+  const isRouteDrivenOrder = routeOrderId != null;
 
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,9 +31,14 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     const loadOrderDetails = async () => {
-      const effectiveOrderId = routeOrderId ?? Number(placedOrder?.id);
+      const effectiveOrderId =
+        routeOrderId != null
+          ? routeOrderId
+          : placedOrder?.id
+          ? Number(placedOrder.id)
+          : null;
 
-      if (!effectiveOrderId) {
+      if (effectiveOrderId == null) {
         setLoading(false);
         return;
       }
@@ -44,6 +50,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           effectiveOrderId,
           token || undefined
         );
+       // console.log('ORDER DETAILS RESPONSE =', JSON.stringify(response));
         setOrderDetails(response.data);
       } catch (error: any) {
         Alert.alert(
@@ -56,9 +63,14 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
     };
 
     loadOrderDetails();
-  }, [placedOrder?.id, routeOrderId]);
+  }, [routeOrderId, placedOrder?.id, ensureValidToken]);
 
   const handleEditOrder = () => {
+    if (isRouteDrivenOrder) {
+      Alert.alert('Editing from table order list is not connected yet');
+      return;
+    }
+
     if (!placedOrder) {
       Alert.alert('No placed order found');
       return;
@@ -69,6 +81,11 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
   };
 
   const handleDeleteOrder = () => {
+    if (isRouteDrivenOrder) {
+      Alert.alert('Deleting from table order list is not connected yet');
+      return;
+    }
+
     if (!placedOrder?.id) {
       Alert.alert('No order found');
       return;
@@ -78,15 +95,8 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
       'Delete Order',
       'Are you sure you want to delete this order?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: confirmDeleteOrder,
-        },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: confirmDeleteOrder },
       ]
     );
   };
@@ -119,34 +129,35 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
   };
 
   const formattedItems = useMemo(() => {
-    if (orderDetails?.items && orderDetails.items.length > 0) {
-      return orderDetails.items;
+    if (orderDetails?.itemsinfo && orderDetails.itemsinfo.length > 0) {
+      return orderDetails.itemsinfo;
     }
 
-    return placedOrder?.items ?? [];
-  }, [orderDetails?.items, placedOrder?.items]);
+    if (!isRouteDrivenOrder) {
+      return placedOrder?.items ?? [];
+    }
+
+    return [];
+  }, [orderDetails?.itemsinfo, placedOrder?.items, isRouteDrivenOrder]);
 
   const subtotal = useMemo(() => {
-    if (orderDetails?.items && orderDetails.items.length > 0) {
-      return orderDetails.items.reduce((sum, item) => {
+    if (orderDetails?.itemsinfo && orderDetails.itemsinfo.length > 0) {
+      return orderDetails.itemsinfo.reduce((sum, item) => {
         const qty = item.menuqty ?? 0;
         const price = Number(item.menuprice ?? item.price ?? 0);
         return sum + qty * price;
       }, 0);
     }
 
-    return placedOrder?.subtotal ?? 0;
-  }, [orderDetails?.items, placedOrder?.subtotal]);
+    if (!isRouteDrivenOrder) {
+      return placedOrder?.subtotal ?? 0;
+    }
 
-  const serviceCharge =
-    orderDetails?.bill?.service_charge ?? placedOrder?.serviceCharge ?? 0;
+    return 0;
+  }, [orderDetails?.itemsinfo, placedOrder?.subtotal, isRouteDrivenOrder]);
 
-  const total =
-    orderDetails?.bill?.bill_amount != null
-      ? orderDetails.bill.bill_amount
-      : orderDetails?.totalamount != null
-      ? Number(orderDetails.totalamount)
-      : placedOrder?.total ?? 0;
+  const serviceCharge = !isRouteDrivenOrder ? placedOrder?.serviceCharge ?? 0 : 0;
+  const total = !isRouteDrivenOrder ? placedOrder?.total ?? subtotal : subtotal;
 
   const renderItem = ({ item }: { item: any }) => {
     const isBackendItem = 'row_id' in item;
@@ -223,13 +234,13 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
       <View style={styles.infoCard}>
         <Text style={styles.infoText}>
-          Order ID: {orderDetails?.order_id ?? placedOrder?.id ?? '--'}
+          Order ID: {orderDetails?.orderinfo?.order_id ?? placedOrder?.id ?? '--'}
         </Text>
         <Text style={styles.infoText}>
-          Table: {placedOrder?.table?.number ?? '--'}
+          Table: {selectedTable?.name ?? selectedTable?.number ?? '--'}
         </Text>
         <Text style={styles.infoText}>
-          Waiter: {placedOrder?.waiter?.name ?? 'Not selected'}
+          Waiter: {!isRouteDrivenOrder ? placedOrder?.waiter?.name ?? 'Not selected' : 'Not available'}
         </Text>
         <Text style={styles.infoText}>
           Items: {formattedItems.length}
@@ -286,7 +297,11 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
         <Pressable
           style={[styles.actionButton, styles.primaryButton]}
-          onPress={() => navigation.navigate('OrderStatus')}
+          onPress={() =>
+            navigation.navigate('OrderStatus', {
+              orderId: routeOrderId ?? (placedOrder?.id ? Number(placedOrder.id) : undefined),
+            })
+          }
         >
           <Text style={styles.primaryButtonText}>Order Status</Text>
         </Pressable>

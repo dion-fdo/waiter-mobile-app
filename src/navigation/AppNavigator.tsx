@@ -7,7 +7,7 @@ import WelcomeScreen from '../screens/auth/WelcomeScreen';
 import WaiterSelectionScreen from '../screens/auth/WaiterSelectionScreen';
 import WaiterPinScreen from '../screens/auth/WaiterPinScreen';
 import TableDashboardScreen from '../screens/tables/TableDashboardScreen';
-import TableOrdersScreen from '../screens/tables/TableOrdersScreen';
+import TableOrdersScreen from '../screens/orders/TableOrdersScreen';
 import CategoryScreen from '../screens/menu/CategoryScreen';
 import ItemListScreen from '../screens/menu/ItemListScreen';
 import CartScreen from '../screens/cart/CartScreen';
@@ -25,16 +25,16 @@ export type RootStackParamList = {
   CustomerSelection: undefined;
   Category: undefined;
   ItemList: { categoryId: string; categoryName: string };
+  Cart: undefined;
+  OrderDetails: { orderId?: number };
+  OrderStatus: {orderId?: number};
+  EditPlacedOrder: undefined;
+  CashierApproval: undefined;
   TableOrders: {
     tableId: number;
     tableName: string;
     tableStatus: 'free' | 'partially_occupied' | 'full';
   };
-  Cart: undefined;
-  OrderDetails: { orderId?: number };
-  OrderStatus: undefined;
-  EditPlacedOrder: undefined;
-  CashierApproval: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();

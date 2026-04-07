@@ -1,4 +1,7 @@
-const BASE_URL = 'https://cuisine.kernelencode.com';
+import { ENV } from "../../config/env";
+
+const BASE_URL = ENV.BASE_URL;
+//console.log('BASE_URL =', BASE_URL);
 
 type RequestOptions = RequestInit & {
   headers?: Record<string, string>;

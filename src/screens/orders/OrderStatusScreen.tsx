@@ -59,7 +59,8 @@ function getStatusText(orderStatus: number): string {
   }
 }
 
-export default function OrderStatusScreen({ navigation }: Props) {
+export default function OrderStatusScreen({ navigation, route}: Props) {
+  const routeOrderId = route.params?.orderId;
   const { placedOrder, ensureValidToken } = useAppContext();
 
   const [loading, setLoading] = useState(true);
@@ -67,7 +68,14 @@ export default function OrderStatusScreen({ navigation }: Props) {
 
   useEffect(() => {
     const loadOrderDetails = async () => {
-      if (!placedOrder?.id) {
+      const effectiveOrderId =
+        routeOrderId != null
+          ? routeOrderId
+          : placedOrder?.id
+          ? Number(placedOrder.id)
+          : null;
+
+      if (effectiveOrderId == null) {
         setLoading(false);
         return;
       }
@@ -76,7 +84,7 @@ export default function OrderStatusScreen({ navigation }: Props) {
         setLoading(true);
         const token = await ensureValidToken();
         const response = await getOrderDetails(
-          Number(placedOrder.id),
+          effectiveOrderId,
           token || undefined
         );
         setOrderDetails(response.data);
@@ -91,11 +99,11 @@ export default function OrderStatusScreen({ navigation }: Props) {
     };
 
     loadOrderDetails();
-  }, [placedOrder?.id]);
+  }, [routeOrderId, placedOrder?.id, ensureValidToken]);
 
   const steps = useMemo(() => {
-    return buildSteps(orderDetails?.order_status ?? 1);
-  }, [orderDetails?.order_status]);
+    return buildSteps(orderDetails?.orderinfo?.status ?? 1);
+  }, [orderDetails?.orderinfo?.status]);
 
   if (loading) {
     return (
@@ -112,7 +120,7 @@ export default function OrderStatusScreen({ navigation }: Props) {
 
       <View style={styles.infoCard}>
         <Text style={styles.infoText}>
-          Order ID: {orderDetails?.order_id ?? placedOrder?.id ?? '--'}
+          Order ID: {orderDetails?.orderinfo?.order_id ?? placedOrder?.id ?? '--'}
         </Text>
         <Text style={styles.infoText}>
           Table: {placedOrder?.table?.number ?? '--'}
@@ -121,7 +129,7 @@ export default function OrderStatusScreen({ navigation }: Props) {
           Waiter: {placedOrder?.waiter?.name ?? 'Not selected'}
         </Text>
         <Text style={styles.infoText}>
-          Current Status: {getStatusText(orderDetails?.order_status ?? 1)}
+          Current Status: {getStatusText(orderDetails?.orderinfo?.status ?? 1)}
         </Text>
       </View>
 
@@ -173,7 +181,7 @@ export default function OrderStatusScreen({ navigation }: Props) {
 
         <Pressable
           style={styles.button}
-          onPress={() => navigation.navigate('OrderDetails')}
+          onPress={() => navigation.navigate('OrderDetails', { orderId: routeOrderId })}
         >
           <Text style={styles.buttonText}>View Order</Text>
         </Pressable>
