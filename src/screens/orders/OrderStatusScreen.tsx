@@ -1,7 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { useAppContext } from '../../context/AppContext';
+import { getOrderDetails, OrderDetailsResponse } from '../../services/api/orderApi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderStatus'>;
 
@@ -11,22 +20,109 @@ type StatusStep = {
   completed: boolean;
 };
 
-const steps: StatusStep[] = [
-  { id: '1', label: 'Order Placed', completed: true },
-  { id: '2', label: 'Preparing', completed: true },
-  { id: '3', label: 'Ready', completed: false },
-  { id: '4', label: 'Served', completed: false },
-];
+function buildSteps(orderStatus: number): StatusStep[] {
+  const currentStep =
+    orderStatus === 1 || orderStatus === 6
+      ? 1
+      : orderStatus === 2
+      ? 2
+      : orderStatus === 3
+      ? 3
+      : orderStatus === 4
+      ? 4
+      : 1;
+
+  return [
+    { id: '1', label: 'Order Placed', completed: currentStep >= 1 },
+    { id: '2', label: 'Preparing', completed: currentStep >= 2 },
+    { id: '3', label: 'Ready', completed: currentStep >= 3 },
+    { id: '4', label: 'Served', completed: currentStep >= 4 },
+  ];
+}
+
+function getStatusText(orderStatus: number): string {
+  switch (orderStatus) {
+    case 1:
+      return 'Pending';
+    case 2:
+      return 'Processing';
+    case 3:
+      return 'Ready';
+    case 4:
+      return 'Served';
+    case 5:
+      return 'Cancelled';
+    case 6:
+      return 'Waiter Order';
+    default:
+      return 'Unknown';
+  }
+}
 
 export default function OrderStatusScreen({ navigation }: Props) {
+  const { placedOrder, ensureValidToken } = useAppContext();
+
+  const [loading, setLoading] = useState(true);
+  const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse['data'] | null>(null);
+
+  useEffect(() => {
+    const loadOrderDetails = async () => {
+      if (!placedOrder?.id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const token = await ensureValidToken();
+        const response = await getOrderDetails(
+          Number(placedOrder.id),
+          token || undefined
+        );
+        setOrderDetails(response.data);
+      } catch (error: any) {
+        Alert.alert(
+          'Failed to load order status',
+          error?.message || 'Please try again'
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOrderDetails();
+  }, [placedOrder?.id]);
+
+  const steps = useMemo(() => {
+    return buildSteps(orderDetails?.order_status ?? 1);
+  }, [orderDetails?.order_status]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#F05A22" />
+        <Text style={styles.loadingText}>Loading order status...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Order Status</Text>
 
       <View style={styles.infoCard}>
-        <Text style={styles.infoText}>Order ID: ORD-1001</Text>
-        <Text style={styles.infoText}>Table: 05</Text>
-        <Text style={styles.infoText}>Waiter: Waiter 01</Text>
+        <Text style={styles.infoText}>
+          Order ID: {orderDetails?.order_id ?? placedOrder?.id ?? '--'}
+        </Text>
+        <Text style={styles.infoText}>
+          Table: {placedOrder?.table?.number ?? '--'}
+        </Text>
+        <Text style={styles.infoText}>
+          Waiter: {placedOrder?.waiter?.name ?? 'Not selected'}
+        </Text>
+        <Text style={styles.infoText}>
+          Current Status: {getStatusText(orderDetails?.order_status ?? 1)}
+        </Text>
       </View>
 
       <View style={styles.timeline}>
@@ -94,6 +190,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#6B7280',
+    fontSize: 15,
+  },
   header: {
     fontSize: 24,
     fontWeight: '700',
@@ -132,7 +237,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   completedDot: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
   },
   pendingDot: {
     backgroundColor: '#E5E7EB',
@@ -144,7 +249,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   completedLine: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
   },
   pendingLine: {
     backgroundColor: '#E5E7EB',
@@ -165,11 +270,11 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   button: {
-    backgroundColor: '#F97316',
+    flex: 1,
+    backgroundColor: '#F05A22',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 12,
   },
   buttonText: {
     color: '#FFFFFF',
@@ -177,11 +282,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   buttonRow: {
-  flexDirection: 'row',
-  gap: 12,
-  marginTop: 12,
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
   },
-
   secondaryButton: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -191,7 +295,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
-
   secondaryButtonText: {
     color: '#111827',
     fontSize: 16,

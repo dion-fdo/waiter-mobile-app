@@ -33,7 +33,7 @@ function buildSelectedAddOn(
 }
 
 export default function ItemModal({ visible, onClose, item }: Props) {
-  const { addToCart } = useAppContext();
+  const { addToCart, isEditingPlacedOrder } = useAppContext();
 
   const defaultVariantName = item?.variants?.[0]?.variantName;
   const [selectedVariantName, setSelectedVariantName] = useState<string>(
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   },
   selectedOption: {
     backgroundColor: '#FDBA74',
-    borderColor: '#F97316',
+    borderColor: '#F05A22',
   },
   optionText: {
     fontSize: 15,
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   },
   selectedAddOnChip: {
     backgroundColor: '#FFF7ED',
-    borderColor: '#F97316',
+    borderColor: '#F05A22',
   },
   addOnChipText: {
     color: '#111827',
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   addBtn: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

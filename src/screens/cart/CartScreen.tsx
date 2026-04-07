@@ -286,10 +286,10 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#F97316',
+    color: '#F05A22',
   },
   button: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

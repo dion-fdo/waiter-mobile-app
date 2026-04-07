@@ -30,14 +30,20 @@ export default function EditPlacedOrderScreen({ navigation }: Props) {
   const handleConfirmEdit = () => {
     Alert.alert(
       'Confirm Edit',
-      'Send this updated order for cashier approval?',
+      'Update this order now?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Confirm',
-          onPress: () => {
-            confirmEditPlacedOrder();
-            navigation.navigate('CashierApproval');
+          onPress: async () => {
+            const success = await confirmEditPlacedOrder();
+
+            if (success) {
+              Alert.alert('Success', 'Order updated successfully');
+              navigation.replace('OrderDetails');
+            } else {
+              Alert.alert('Update Failed', 'Could not update the order');
+            }
           },
         },
       ]
@@ -55,9 +61,19 @@ export default function EditPlacedOrderScreen({ navigation }: Props) {
         <View style={styles.itemInfo}>
           <Text style={styles.itemName}>{item.name}</Text>
           <Text style={styles.itemMeta}>LKR {item.price}</Text>
-          {item.size ? <Text style={styles.itemSubMeta}>Size: {item.size}</Text> : null}
-          {item.addOns && item.addOns.length > 0 ? (
-            <Text style={styles.itemSubMeta}>Add-ons: {item.addOns.join(', ')}</Text>
+
+          {item.variantName ? (
+            <Text style={styles.itemSubMeta}>Variant: {item.variantName}</Text>
+          ) : null}
+
+          {item.selectedAddOns && item.selectedAddOns.length > 0 ? (
+            <Text style={styles.itemSubMeta}>
+              Add-ons: {item.selectedAddOns.map((addOn) => addOn.addOnName).join(', ')}
+            </Text>
+          ) : null}
+
+          {item.note ? (
+            <Text style={styles.itemSubMeta}>Note: {item.note}</Text>
           ) : null}
         </View>
 
@@ -108,6 +124,13 @@ export default function EditPlacedOrderScreen({ navigation }: Props) {
           </View>
         }
       />
+
+      <Pressable
+        style={styles.addMoreButton}
+        onPress={() => navigation.navigate('Category')}
+      >
+        <Text style={styles.addMoreButtonText}>+ Add More Items</Text>
+      </Pressable>
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
@@ -296,7 +319,7 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#F97316',
+    color: '#F05A22',
   },
   buttonRow: {
     flexDirection: 'row',
@@ -318,13 +341,28 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   buttonText: {
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  addMoreButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F05A22',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  addMoreButtonText: {
+    color: '#F05A22',
     fontSize: 16,
     fontWeight: '700',
   },

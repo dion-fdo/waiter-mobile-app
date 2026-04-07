@@ -667,11 +667,11 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   dropdownItemTextSelected: {
-    color: '#F97316',
+    color: '#F05A22',
     fontWeight: '600',
   },
   dropdownArrow: {
-    color: '#F97316',
+    color: '#F05A22',
     marginLeft: 8,
   },
   bottomArrowWrap: {
@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   selectedCustomerCard: {
-    borderColor: '#F97316',
+    borderColor: '#F05A22',
     backgroundColor: '#FFF7ED',
   },
   customerName: {
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   membershipText: {
-    color: '#F97316',
+    color: '#F05A22',
     fontWeight: '600',
   },
   addButton: {
@@ -712,7 +712,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   continueButton: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
     alignItems: 'center',
   },
   continueButtonText: {
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   modalAddButton: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
     alignItems: 'center',
   },
   modalAddButtonText: {

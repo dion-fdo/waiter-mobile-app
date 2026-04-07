@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,17 @@ import {
   Modal,
   Image,
   StatusBar,
+  Animated,
+  Easing,
 } from 'react-native';
 import { getTables } from '../../services/api/tableApi';
+import { getActiveOrdersByTable } from '../../services/api/orderApi';
 import { useAppContext } from '../../context/AppContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { RestaurantTable } from '../../types/table';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TableDashboard'>;
 
@@ -46,6 +51,9 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const [pendingTable, setPendingTable] = useState<RestaurantTable | null>(null);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
+  const personSheetAnim = useState(new Animated.Value(320))[0];
+  const logoutSheetAnim = useState(new Animated.Value(320))[0];
+
   const scaleW = width / DESIGN_WIDTH;
   const scaleH = height / DESIGN_HEIGHT;
   const scale = Math.min(scaleW, scaleH);
@@ -58,13 +66,45 @@ export default function TableDashboardScreen({ navigation }: Props) {
   }, [filter, tables]);
 
   const handleTablePress = async (table: RestaurantTable) => {
-    if (table.status === 'full') {
-      setSelectedTable(table);
-      navigation.navigate('OrderStatus');
-      return;
+    try {
+      const token = await ensureValidToken();
+
+      const activeOrders = await getActiveOrdersByTable(
+        Number(table.id),
+        token || undefined
+      );
+
+      const activeTableOrders = activeOrders.data.filter(
+        (order) => ![4, 5].includes(order.order_status)
+      );
+
+      if (activeTableOrders.length > 0) {
+        setSelectedTable(table);
+
+        navigation.navigate('TableOrders', {
+          tableId: Number(table.id),
+          tableName: table.name ?? `Table ${table.number}`,
+          tableStatus: table.status,
+        });
+
+        return;
+      }
+    } catch (error: any) {
+      const message = error?.message || '';
+
+      if (
+        message.toLowerCase().includes('active order not found') ||
+        message.toLowerCase().includes('404')
+      ) {
+        // continue to new-order flow
+      } else {
+        Alert.alert('Failed to load table order', message || 'Please try again');
+        return;
+      }
     }
 
     const maxAllowed = getMaxAllowedPeople(table);
+
     if (maxAllowed <= 0) {
       Alert.alert('Table is full');
       return;
@@ -114,6 +154,28 @@ export default function TableDashboardScreen({ navigation }: Props) {
 
     return table.capacity ?? 1;
   };
+
+  useEffect(() => {
+    Animated.timing(personSheetAnim, {
+      toValue: personCountModalVisible ? 0 : 320,
+      duration: personCountModalVisible ? 260 : 180,
+      easing: personCountModalVisible
+        ? Easing.out(Easing.cubic)
+        : Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [personCountModalVisible, personSheetAnim]);
+
+  useEffect(() => {
+    Animated.timing(logoutSheetAnim, {
+      toValue: logoutModalVisible ? 0 : 320,
+      duration: logoutModalVisible ? 260 : 180,
+      easing: logoutModalVisible
+        ? Easing.out(Easing.cubic)
+        : Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [logoutModalVisible, logoutSheetAnim]);
 
   useEffect(() => {
     const init = async () => {
@@ -166,7 +228,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
 
   const getFilterLabel = () => {
     if (filter === 'free') return 'Free Tables';
-    if (filter === 'partially_occupied') return 'Reserved Tables';
+    if (filter === 'partially_occupied') return 'Not Full Tables';
     if (filter === 'full') return 'Full Tables';
     return 'All Tables';
   };
@@ -261,14 +323,14 @@ export default function TableDashboardScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" />
 
       <View
         style={[
           styles.topHeader,
           {
-            marginTop: 6 * scaleH,
+            marginTop: 0,
             marginHorizontal: 6 * scaleW,
             minHeight: 60 * scaleH,
             borderRadius: 10 * scale,
@@ -360,16 +422,19 @@ export default function TableDashboardScreen({ navigation }: Props) {
         onRefresh={handleRefresh}
       />
 
-
       <View
         style={[
           styles.bottomFilterBar,
           {
-            height: 74 * scaleH,
-            borderTopLeftRadius: 28 * scale,
-            borderTopRightRadius: 28 * scale,
-            paddingHorizontal: 24 * scaleW,
-            paddingBottom: 10 * scaleH,
+            width: '72%',
+            alignSelf: 'center',
+            height: 62 * scaleH,
+            borderTopLeftRadius: 22 * scale,
+            borderTopRightRadius: 22 * scale,
+            paddingHorizontal: 18 * scaleW,
+            paddingBottom: 6 * scaleH,
+            marginBottom: 0,
+
           },
         ]}
       >
@@ -386,7 +451,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
           scale={scale}
         />
         <BottomTab
-          label="Reserved"
+          label="Not Full"
           active={filter === 'partially_occupied'}
           onPress={() => setFilter('partially_occupied')}
           scale={scale}
@@ -399,21 +464,27 @@ export default function TableDashboardScreen({ navigation }: Props) {
         />
       </View>
 
-
       <Modal
         visible={personCountModalVisible}
         transparent
         animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setPersonCountModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View
+        <View style={styles.bottomSheetOverlay}>
+          <Pressable
+            style={styles.bottomSheetBackdrop}
+            onPress={() => setPersonCountModalVisible(false)}
+          />
+
+          <Animated.View
             style={[
-              styles.modalCard,
+              styles.bottomSheetCard,
               {
-                borderRadius: 28 * scale,
                 paddingVertical: 28 * scaleH,
                 paddingHorizontal: 24 * scaleW,
+                transform: [{ translateY: personSheetAnim }],
               },
             ]}
           >
@@ -421,7 +492,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
               style={[
                 styles.modalTitle,
                 {
-                  fontSize: 24 * scale,
+                  fontSize: 18 * scale,
                   marginBottom: 8 * scaleH,
                 },
               ]}
@@ -455,8 +526,8 @@ export default function TableDashboardScreen({ navigation }: Props) {
                 style={[
                   styles.personCountButton,
                   {
-                    width: 74 * scale,
-                    height: 66 * scaleH,
+                    width: 50 * scale,
+                    height: 50 * scaleH,
                     borderRadius: 14 * scale,
                   },
                 ]}
@@ -466,7 +537,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
                   style={[
                     styles.personCountButtonText,
                     {
-                      fontSize: 34 * scale,
+                      fontSize: 20 * scale,
                     },
                   ]}
                 >
@@ -488,7 +559,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
                   style={[
                     styles.personCountValueText,
                     {
-                      fontSize: 30 * scale,
+                      fontSize: 24 * scale,
                     },
                   ]}
                 >
@@ -500,8 +571,8 @@ export default function TableDashboardScreen({ navigation }: Props) {
                 style={[
                   styles.personCountButton,
                   {
-                    width: 74 * scale,
-                    height: 66 * scaleH,
+                    width: 50 * scale,
+                    height: 50 * scaleH,
                     borderRadius: 14 * scale,
                   },
                 ]}
@@ -511,7 +582,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
                   style={[
                     styles.personCountButtonText,
                     {
-                      fontSize: 34 * scale,
+                      fontSize: 20 * scale,
                     },
                   ]}
                 >
@@ -564,23 +635,32 @@ export default function TableDashboardScreen({ navigation }: Props) {
                 Cancel
               </Text>
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
       <Modal
         visible={logoutModalVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setLogoutModalVisible(false)}
       >
-        <View style={styles.logoutSheetOverlay}>
+        <View style={styles.bottomSheetOverlay}>
           <Pressable
-            style={styles.logoutSheetBackdrop}
+            style={styles.bottomSheetBackdrop}
             onPress={() => setLogoutModalVisible(false)}
           />
 
-          <View style={styles.logoutSheetCard}>
+          <Animated.View
+            style={[
+              styles.bottomSheetCard,
+              {
+                transform: [{ translateY: logoutSheetAnim }],
+              },
+            ]}
+          >
             <Text style={styles.logoutSheetTitle}>Are you sure?</Text>
 
             <Pressable
@@ -596,11 +676,11 @@ export default function TableDashboardScreen({ navigation }: Props) {
             >
               <Text style={styles.logoutCancelButtonText}>Cancel</Text>
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -668,7 +748,11 @@ const styles = StyleSheet.create({
   },
 
   headerAction: {
-    marginLeft: 16,
+    marginLeft: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   waiterName: {
@@ -731,14 +815,11 @@ const styles = StyleSheet.create({
 
   bottomFilterBar: {
     position: 'absolute',
-    left: 0,
-    right: 0,
     bottom: 0,
     backgroundColor: '#000000',
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-around',
-    paddingTop: 14,
+    alignItems: 'center',
   },
 
   bottomTab: {
@@ -766,40 +847,49 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
 
-  modalOverlay: {
+  bottomSheetOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    justifyContent: 'flex-end',
   },
 
-  modalCard: {
+  bottomSheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+
+  bottomSheetCard: {
     width: '100%',
     backgroundColor: '#FFFFFF',
-    alignItems: 'center',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 26,
+    paddingTop: 22,
+    paddingBottom: 24,
+    marginBottom: 0,
   },
 
   modalTitle: {
     color: '#111827',
     fontFamily: 'Inter',
     fontWeight: '700',
+    textAlign: 'center',
   },
 
   modalSubText: {
     color: '#6B7280',
     fontFamily: 'Inter',
+    textAlign: 'center',
   },
 
   personCountRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 18,
+    gap: 28,
   },
 
   personCountButton: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -826,7 +916,7 @@ const styles = StyleSheet.create({
 
   confirmPersonButton: {
     width: '100%',
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05822',
     alignItems: 'center',
   },
 
@@ -846,31 +936,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontWeight: '600',
   },
-  logoutSheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'flex-end',
-  },
-
-  logoutSheetBackdrop: {
-    flex: 1,
-  },
-
-  logoutSheetCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingHorizontal: 26,
-    paddingTop: 22,
-    paddingBottom: 34,
-  },
 
   logoutSheetTitle: {
     textAlign: 'center',
     fontSize: 22,
     fontFamily: 'Inter',
-    fontWeight: '600',
+    fontWeight: '800',
     color: '#111111',
     marginBottom: 26,
   },
@@ -893,14 +964,13 @@ const styles = StyleSheet.create({
 
   logoutCancelButton: {
     width: '100%',
-    backgroundColor: '#000000',
     paddingVertical: 16,
     borderRadius: 10,
     alignItems: 'center',
   },
 
   logoutCancelButtonText: {
-    color: '#FFFFFF',
+    color: '#000000',
     fontSize: 16,
     fontFamily: 'Inter',
     fontWeight: '500',

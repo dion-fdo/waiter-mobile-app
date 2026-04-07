@@ -23,7 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ItemList'>;
 export default function ItemListScreen({ navigation, route }: Props) {
   const { width } = useWindowDimensions();
   const { categoryId, categoryName } = route.params;
-  const { selectedTable, ensureValidToken } = useAppContext();
+  const { selectedTable, ensureValidToken, isEditingPlacedOrder } = useAppContext();
 
   const numColumns = width >= 900 ? 3 : width >= 600 ? 2 : 1;
 
@@ -123,9 +123,15 @@ export default function ItemListScreen({ navigation, route }: Props) {
 
         <Pressable
           style={styles.cartButton}
-          onPress={() => navigation.navigate('Cart')}
+          onPress={() =>
+            navigation.navigate(
+              isEditingPlacedOrder ? 'EditPlacedOrder' : 'Cart'
+            )
+          }
         >
-          <Text style={styles.cartButtonText}>Go Cart</Text>
+          <Text style={styles.cartButtonText}>
+            {isEditingPlacedOrder ? 'Back to Edit Order' : 'Go Cart'}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -241,7 +247,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   addButton: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',

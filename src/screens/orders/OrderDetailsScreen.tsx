@@ -1,14 +1,62 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, Alert } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  FlatList,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
-import { CartItem } from '../../types/cart';
 import { useAppContext } from '../../context/AppContext';
+import {
+  deleteOrder,
+  getOrderDetails,
+  OrderDetailsItemResponse,
+  OrderDetailsResponse,
+} from '../../services/api/orderApi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
-export default function OrderDetailsScreen({ navigation }: Props) {
-  const { placedOrder, startEditPlacedOrder } = useAppContext();
+export default function OrderDetailsScreen({ navigation, route }: Props) {
+  const routeOrderId = route.params?.orderId;
+  const { placedOrder, startEditPlacedOrder, ensureValidToken } = useAppContext();
+
+  const [deleting, setDeleting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse['data'] | null>(null);
+
+  useEffect(() => {
+    const loadOrderDetails = async () => {
+      const effectiveOrderId = routeOrderId ?? Number(placedOrder?.id);
+
+      if (!effectiveOrderId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const token = await ensureValidToken();
+        const response = await getOrderDetails(
+          effectiveOrderId,
+          token || undefined
+        );
+        setOrderDetails(response.data);
+      } catch (error: any) {
+        Alert.alert(
+          'Failed to load order details',
+          error?.message || 'Please try again'
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOrderDetails();
+  }, [placedOrder?.id, routeOrderId]);
 
   const handleEditOrder = () => {
     if (!placedOrder) {
@@ -20,50 +68,187 @@ export default function OrderDetailsScreen({ navigation }: Props) {
     navigation.navigate('EditPlacedOrder');
   };
 
-  const renderItem = ({ item }: { item: CartItem }) => (
-    <View style={styles.itemCard}>
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemMeta}>
-          Qty: {item.qty} × LKR {item.price}
-        </Text>
-        {item.variantName ? (
-          <Text style={styles.itemSubMeta}>Variant: {item.variantName}</Text>
-        ) : null}
+  const handleDeleteOrder = () => {
+    if (!placedOrder?.id) {
+      Alert.alert('No order found');
+      return;
+    }
 
-        {item.selectedAddOns && item.selectedAddOns.length > 0 ? (
-          <Text style={styles.itemSubMeta}>
-            Add-ons: {item.selectedAddOns.map((addOn) => addOn.addOnName).join(', ')}
+    Alert.alert(
+      'Delete Order',
+      'Are you sure you want to delete this order?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: confirmDeleteOrder,
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteOrder = async () => {
+    try {
+      setDeleting(true);
+
+      const token = await ensureValidToken();
+
+      await deleteOrder(
+        Number(placedOrder?.id),
+        token || undefined
+      );
+
+      Alert.alert('Success', 'Order deleted successfully');
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'TableDashboard' }],
+      });
+    } catch (error: any) {
+      Alert.alert(
+        'Delete Failed',
+        error?.message || 'Please try again'
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const formattedItems = useMemo(() => {
+    if (orderDetails?.items && orderDetails.items.length > 0) {
+      return orderDetails.items;
+    }
+
+    return placedOrder?.items ?? [];
+  }, [orderDetails?.items, placedOrder?.items]);
+
+  const subtotal = useMemo(() => {
+    if (orderDetails?.items && orderDetails.items.length > 0) {
+      return orderDetails.items.reduce((sum, item) => {
+        const qty = item.menuqty ?? 0;
+        const price = Number(item.menuprice ?? item.price ?? 0);
+        return sum + qty * price;
+      }, 0);
+    }
+
+    return placedOrder?.subtotal ?? 0;
+  }, [orderDetails?.items, placedOrder?.subtotal]);
+
+  const serviceCharge =
+    orderDetails?.bill?.service_charge ?? placedOrder?.serviceCharge ?? 0;
+
+  const total =
+    orderDetails?.bill?.bill_amount != null
+      ? orderDetails.bill.bill_amount
+      : orderDetails?.totalamount != null
+      ? Number(orderDetails.totalamount)
+      : placedOrder?.total ?? 0;
+
+  const renderItem = ({ item }: { item: any }) => {
+    const isBackendItem = 'row_id' in item;
+
+    const itemName = isBackendItem
+      ? item.food_name || item.ProductName || 'Unnamed Item'
+      : item.name;
+
+    const qty = isBackendItem
+      ? item.menuqty ?? 0
+      : item.qty ?? 0;
+
+    const price = isBackendItem
+      ? Number(item.menuprice ?? item.price ?? 0)
+      : item.price ?? 0;
+
+    const variantName = isBackendItem
+      ? item.variantName || item.variant_name
+      : item.variantName;
+
+    const note = isBackendItem
+      ? item.itemnote
+      : item.note;
+
+    const addOnsText = isBackendItem
+      ? item.add_on_id && item.add_on_id.trim() !== ''
+        ? item.add_on_id
+        : ''
+      : item.selectedAddOns && item.selectedAddOns.length > 0
+      ? item.selectedAddOns.map((addOn: any) => addOn.addOnName).join(', ')
+      : '';
+
+    const totalPrice = qty * price;
+
+    return (
+      <View style={styles.itemCard}>
+        <View style={styles.itemInfo}>
+          <Text style={styles.itemName}>{itemName}</Text>
+
+          <Text style={styles.itemMeta}>
+            Qty: {qty} × LKR {price}
           </Text>
-        ) : null}
 
-        {item.note ? (
-          <Text style={styles.itemSubMeta}>Note: {item.note}</Text>
-        ) : null}
+          {variantName ? (
+            <Text style={styles.itemSubMeta}>Variant: {variantName}</Text>
+          ) : null}
+
+          {addOnsText ? (
+            <Text style={styles.itemSubMeta}>Add-ons: {addOnsText}</Text>
+          ) : null}
+
+          {note ? (
+            <Text style={styles.itemSubMeta}>Note: {note}</Text>
+          ) : null}
+        </View>
+
+        <Text style={styles.itemTotal}>LKR {totalPrice}</Text>
       </View>
+    );
+  };
 
-      <Text style={styles.itemTotal}>LKR {item.qty * item.price}</Text>
-    </View>
-  );
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#F05A22" />
+        <Text style={styles.loadingText}>Loading order details...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Order Details</Text>
 
       <View style={styles.infoCard}>
-        <Text style={styles.infoText}>Order ID: {placedOrder?.id ?? '--'}</Text>
         <Text style={styles.infoText}>
-          Table: {placedOrder?.table ? String(placedOrder.table.number).padStart(2, '0') : '--'}
+          Order ID: {orderDetails?.order_id ?? placedOrder?.id ?? '--'}
+        </Text>
+        <Text style={styles.infoText}>
+          Table: {placedOrder?.table?.number ?? '--'}
         </Text>
         <Text style={styles.infoText}>
           Waiter: {placedOrder?.waiter?.name ?? 'Not selected'}
         </Text>
-        <Text style={styles.infoText}>Items: {placedOrder?.items.length ?? 0}</Text>
+        <Text style={styles.infoText}>
+          Items: {formattedItems.length}
+        </Text>
       </View>
 
       <FlatList
-        data={placedOrder?.items ?? []}
-        keyExtractor={(item) => item.id}
+        data={formattedItems}
+        keyExtractor={(item: any, index) => {
+          if ('row_id' in item && item.row_id != null) {
+            return `backend-${item.row_id}`;
+          }
+
+          if ('id' in item && item.id) {
+            return `local-${item.id}`;
+          }
+
+          return `fallback-${index}`;
+        }}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -77,17 +262,17 @@ export default function OrderDetailsScreen({ navigation }: Props) {
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Subtotal</Text>
-          <Text style={styles.summaryValue}>LKR {placedOrder?.subtotal ?? 0}</Text>
+          <Text style={styles.summaryValue}>LKR {subtotal}</Text>
         </View>
 
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Service Charge</Text>
-          <Text style={styles.summaryValue}>LKR {placedOrder?.serviceCharge ?? 0}</Text>
+          <Text style={styles.summaryValue}>LKR {serviceCharge}</Text>
         </View>
 
         <View style={[styles.summaryRow, styles.totalRow]}>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>LKR {placedOrder?.total ?? 0}</Text>
+          <Text style={styles.totalValue}>LKR {total}</Text>
         </View>
       </View>
 
@@ -106,6 +291,16 @@ export default function OrderDetailsScreen({ navigation }: Props) {
           <Text style={styles.primaryButtonText}>Order Status</Text>
         </Pressable>
       </View>
+
+      <Pressable
+        style={styles.deleteOrderButton}
+        onPress={handleDeleteOrder}
+        disabled={deleting}
+      >
+        <Text style={styles.deleteOrderButtonText}>
+          {deleting ? 'Deleting...' : 'Delete Order'}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -117,6 +312,15 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 20,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#6B7280',
   },
   header: {
     fontSize: 24,
@@ -225,7 +429,7 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#F97316',
+    color: '#F05A22',
   },
   actionRow: {
     flexDirection: 'row',
@@ -238,7 +442,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButton: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
   },
   secondaryButton: {
     backgroundColor: '#FFFFFF',
@@ -252,6 +456,20 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#111827',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  deleteOrderButton: {
+    marginTop: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  deleteOrderButtonText: {
+    color: '#B91C1C',
     fontSize: 15,
     fontWeight: '700',
   },

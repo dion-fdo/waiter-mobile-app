@@ -34,7 +34,18 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     throw new Error(message);
   }
 
-  return response.json() as Promise<T>;
+  const contentType = response.headers.get('content-type') || '';
+  const text = await response.text();
+
+  if (!text) {
+    return {} as T;
+  }
+
+  if (contentType.includes('application/json')) {
+    return JSON.parse(text) as T;
+  }
+
+  return text as T;
 }
 
 export const apiClient = {

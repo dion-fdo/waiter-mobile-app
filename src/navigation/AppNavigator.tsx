@@ -7,6 +7,7 @@ import WelcomeScreen from '../screens/auth/WelcomeScreen';
 import WaiterSelectionScreen from '../screens/auth/WaiterSelectionScreen';
 import WaiterPinScreen from '../screens/auth/WaiterPinScreen';
 import TableDashboardScreen from '../screens/tables/TableDashboardScreen';
+import TableOrdersScreen from '../screens/tables/TableOrdersScreen';
 import CategoryScreen from '../screens/menu/CategoryScreen';
 import ItemListScreen from '../screens/menu/ItemListScreen';
 import CartScreen from '../screens/cart/CartScreen';
@@ -24,8 +25,13 @@ export type RootStackParamList = {
   CustomerSelection: undefined;
   Category: undefined;
   ItemList: { categoryId: string; categoryName: string };
+  TableOrders: {
+    tableId: number;
+    tableName: string;
+    tableStatus: 'free' | 'partially_occupied' | 'full';
+  };
   Cart: undefined;
-  OrderDetails: undefined;
+  OrderDetails: { orderId?: number };
   OrderStatus: undefined;
   EditPlacedOrder: undefined;
   CashierApproval: undefined;
@@ -49,6 +55,7 @@ export default function AppNavigator() {
         <Stack.Screen name="WaiterPin" component={WaiterPinScreen} />
 
         <Stack.Screen name="TableDashboard" component={TableDashboardScreen} />
+        <Stack.Screen name="TableOrders" component={TableOrdersScreen} />
         <Stack.Screen name="CustomerSelection" component={CustomerSelectionScreen} />
         <Stack.Screen name="Category" component={CategoryScreen} />
         <Stack.Screen name="ItemList" component={ItemListScreen} />

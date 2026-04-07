@@ -142,7 +142,7 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
               style={{
                 width: 22 * scale,
                 height: 22 * scale,
-                tintColor: '#F05822',
+                tintColor: '#F05A22',
               }}
               resizeMode="contain"
             />
@@ -167,7 +167,7 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
                 height: 56 * scaleH,
                 borderRadius: 999,
                 backgroundColor: password.trim()
-                  ? '#F97316'
+                  ? '#F05A22'
                   : '#FDBA74',
               },
             ]}
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   button: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05A22',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center', 
