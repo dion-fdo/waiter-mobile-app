@@ -6,7 +6,7 @@ import { MenuItem } from '../types/menuItem';
 import { getM2MToken } from '../services/api/authApi';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Customer } from '../types/customer';
-import { createOrder, updateOrder } from '../services/api/orderApi';
+import { createOrder, updateOrder, OrderDetailsResponse} from '../services/api/orderApi';
 
 
 type ItemSize = string;
@@ -42,6 +42,7 @@ type PlacedOrder = {
   subtotal: number;
   serviceCharge: number;
   total: number;
+  customerId?: number | null;
 };
 
 
@@ -100,6 +101,11 @@ type AppContextType = {
 
   isEditingPlacedOrder: boolean;
   setIsEditingPlacedOrder: (value: boolean) => void;
+
+  startEditBackendOrder: (
+    orderData: OrderDetailsResponse['data'],
+    table?: RestaurantTable | null
+  ) => void;
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -398,6 +404,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         subtotal,
         serviceCharge: 0,
         total: subtotal,
+        customerId: Number(selectedCustomer.id),
       });
 
       await clearDraftForTable(selectedTable.id);
@@ -418,6 +425,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setIsEditingPlacedOrder(true);
     setEditOrderItems(cloneCartItems(placedOrder.items));
+  };
+
+  const startEditBackendOrder = (
+    orderData: OrderDetailsResponse['data'],
+    table?: RestaurantTable | null
+  ) => {
+    const mappedItems: CartItem[] = (orderData.itemsinfo ?? []).map((item) => ({
+      id: String(item.row_id),
+      menuId: String(item.menu_id),
+      name: item.food_name || item.ProductName || 'Unnamed Item',
+      qty: item.menuqty ?? 0,
+      price: Number(item.menuprice ?? item.price ?? 0),
+      variantId: item.variantid != null ? String(item.variantid) : undefined,
+      variantName: item.variantName ?? undefined,
+      selectedAddOns: [],
+      note: item.itemnote ?? '',
+    }));
+
+    const nextSubtotal = mappedItems.reduce(
+      (sum, item) => sum + item.qty * item.price,
+      0
+    );
+
+    const nextPlacedOrder: PlacedOrder = {
+      id: String(orderData.orderinfo.order_id),
+      table: table ?? selectedTable ?? null,
+      waiter: selectedWaiter,
+      items: mappedItems,
+      subtotal: nextSubtotal,
+      serviceCharge: 0,
+      total: nextSubtotal,
+      customerId: orderData.orderinfo.customer_id ?? null,
+    };
+
+    setPlacedOrder(nextPlacedOrder);
+    setEditOrderItems(cloneCartItems(mappedItems));
+    setIsEditingPlacedOrder(true);
   };
 
   const updateEditOrderItemQty = (id: string, type: 'inc' | 'dec') => {
@@ -450,7 +494,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Waiter not selected');
       }
 
-      if (!selectedCustomer?.id) {
+      const effectiveCustomerId =
+        selectedCustomer?.id != null
+          ? Number(selectedCustomer.id)
+          : placedOrder?.customerId ?? null;
+
+      if (effectiveCustomerId == null) {
         throw new Error('Customer not selected');
       }
 
@@ -468,7 +517,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const payload = {
         ctypeid: 1,
-        customer_id: Number(selectedCustomer.id),
+        customer_id: effectiveCustomerId,
         order_date: today,
         waiter_id: Number(selectedWaiter.waiterId),
         tableid: Number(selectedTable.id),
@@ -569,6 +618,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearCart,
       placeOrder,
       startEditPlacedOrder,
+      startEditBackendOrder,
       updateEditOrderItemQty,
       removeEditOrderItem,
       confirmEditPlacedOrder,
@@ -600,6 +650,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       editTotal,
 
       isEditingPlacedOrder,
+      startEditBackendOrder,
     ]
   );
 

@@ -21,7 +21,14 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
 export default function OrderDetailsScreen({ navigation, route }: Props) {
   const routeOrderId = route.params?.orderId;
-  const { placedOrder, startEditPlacedOrder, ensureValidToken, selectedTable } = useAppContext();
+  const {
+    placedOrder,
+    startEditPlacedOrder,
+    startEditBackendOrder,
+    ensureValidToken,
+    selectedTable,
+    selectedWaiter,
+  } = useAppContext();
 
   const isRouteDrivenOrder = routeOrderId != null;
 
@@ -67,7 +74,13 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
   const handleEditOrder = () => {
     if (isRouteDrivenOrder) {
-      Alert.alert('Editing from table order list is not connected yet');
+      if (!orderDetails) {
+        Alert.alert('Order details not loaded yet');
+        return;
+      }
+
+      startEditBackendOrder(orderDetails, selectedTable ?? null);
+      navigation.navigate('EditPlacedOrder');
       return;
     }
 
@@ -240,7 +253,11 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           Table: {selectedTable?.name ?? selectedTable?.number ?? '--'}
         </Text>
         <Text style={styles.infoText}>
-          Waiter: {!isRouteDrivenOrder ? placedOrder?.waiter?.name ?? 'Not selected' : 'Not available'}
+          Waiter:{' '}
+          {placedOrder?.waiter?.name
+            ?? selectedWaiter?.name
+            ?? selectedWaiter?.email
+            ?? 'Not available'}
         </Text>
         <Text style={styles.infoText}>
           Items: {formattedItems.length}
