@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useAppContext } from '../../context/AppContext';
 import { getActiveOrdersByTable } from '../../services/api/orderApi';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TableOrders'>;
 
@@ -51,33 +52,45 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
   const [orders, setOrders] = useState<TableOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadOrders = async () => {
-      try {
-        setLoading(true);
-        const token = await ensureValidToken();
-        const response = await getActiveOrdersByTable(
-          tableId,
-          token || undefined
-        );
+  const loadOrders = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = await ensureValidToken();
+      const response = await getActiveOrdersByTable(
+        tableId,
+        token || undefined
+      );
 
-        const activeOrders = response.data.filter(
-          (order) => ![4, 5].includes(order.order_status)
-        );
+      const activeOrders = response.data.filter(
+        (order) => ![4, 5].includes(order.order_status)
+      );
 
-        setOrders(activeOrders);
-      } catch (error: any) {
+      setOrders(activeOrders);
+    } catch (error: any) {
+        const message = error?.message || '';
+
+        if (
+          message.toLowerCase().includes('active order not found') ||
+          message.toLowerCase().includes('404')
+        ) {
+          setOrders([]);
+          return;
+        }
+
         Alert.alert(
           'Failed to load table orders',
-          error?.message || 'Please try again'
+          message || 'Please try again'
         );
       } finally {
         setLoading(false);
       }
-    };
+  }, [tableId, ensureValidToken]);
 
-    loadOrders();
-  }, [tableId]);
+  useFocusEffect(
+    useCallback(() => {
+      loadOrders();
+    }, [loadOrders])
+  );
 
   const handleOpenOrder = (orderId: number) => {
     navigation.push('OrderDetails', { orderId });

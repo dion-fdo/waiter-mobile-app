@@ -144,6 +144,29 @@ export default function TableDashboardScreen({ navigation }: Props) {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const refreshTables = async () => {
+        try {
+          setLoadingTables(true);
+          await loadTables();
+        } finally {
+          if (isActive) {
+            setLoadingTables(false);
+          }
+        }
+      };
+
+      refreshTables();
+
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
+
   const getMaxAllowedPeople = (table: RestaurantTable) => {
     if (
       typeof table.remainingCapacity === 'number' &&
@@ -176,19 +199,6 @@ export default function TableDashboardScreen({ navigation }: Props) {
       useNativeDriver: true,
     }).start();
   }, [logoutModalVisible, logoutSheetAnim]);
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        setLoadingTables(true);
-        await loadTables();
-      } finally {
-        setLoadingTables(false);
-      }
-    };
-
-    init();
-  }, []);
 
   const handleRefresh = async () => {
     try {

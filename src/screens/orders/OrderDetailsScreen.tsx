@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   getOrderDetails,
   OrderDetailsResponse,
 } from '../../services/api/orderApi';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
@@ -36,41 +37,42 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(true);
   const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse['data'] | null>(null);
 
-  useEffect(() => {
-    const loadOrderDetails = async () => {
-      const effectiveOrderId =
-        routeOrderId != null
-          ? routeOrderId
-          : placedOrder?.id
-          ? Number(placedOrder.id)
-          : null;
+  const loadOrderDetails = async () => {
+    const effectiveOrderId =
+      routeOrderId != null
+        ? routeOrderId
+        : placedOrder?.id
+        ? Number(placedOrder.id)
+        : null;
 
-      if (effectiveOrderId == null) {
-        setLoading(false);
-        return;
-      }
+    if (effectiveOrderId == null) {
+      setLoading(false);
+      return;
+    }
 
-      try {
-        setLoading(true);
-        const token = await ensureValidToken();
-        const response = await getOrderDetails(
-          effectiveOrderId,
-          token || undefined
-        );
-       // console.log('ORDER DETAILS RESPONSE =', JSON.stringify(response));
-        setOrderDetails(response.data);
-      } catch (error: any) {
-        Alert.alert(
-          'Failed to load order details',
-          error?.message || 'Please try again'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      setLoading(true);
+      const token = await ensureValidToken();
+      const response = await getOrderDetails(
+        effectiveOrderId,
+        token || undefined
+      );
+      setOrderDetails(response.data);
+    } catch (error: any) {
+      Alert.alert(
+        'Failed to load order details',
+        error?.message || 'Please try again'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    loadOrderDetails();
-  }, [routeOrderId, placedOrder?.id, ensureValidToken]);
+  useFocusEffect(
+    useCallback(() => {
+      loadOrderDetails();
+    }, [routeOrderId, placedOrder?.id])
+  );
 
   const handleEditOrder = () => {
     if (isRouteDrivenOrder) {
@@ -94,12 +96,14 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
   };
 
   const handleDeleteOrder = () => {
-    if (isRouteDrivenOrder) {
-      Alert.alert('Deleting from table order list is not connected yet');
-      return;
-    }
+    const effectiveOrderId =
+      routeOrderId != null
+        ? routeOrderId
+        : placedOrder?.id
+        ? Number(placedOrder.id)
+        : null;
 
-    if (!placedOrder?.id) {
+    if (effectiveOrderId == null) {
       Alert.alert('No order found');
       return;
     }
@@ -108,29 +112,57 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
       'Delete Order',
       'Are you sure you want to delete this order?',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: confirmDeleteOrder },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: confirmDeleteOrder,
+        },
       ]
     );
   };
 
   const confirmDeleteOrder = async () => {
+    const effectiveOrderId =
+      routeOrderId != null
+        ? routeOrderId
+        : placedOrder?.id
+        ? Number(placedOrder.id)
+        : null;
+
+    if (effectiveOrderId == null) {
+      Alert.alert('No order found');
+      return;
+    }
+
     try {
       setDeleting(true);
 
       const token = await ensureValidToken();
 
       await deleteOrder(
-        Number(placedOrder?.id),
+        effectiveOrderId,
         token || undefined
       );
 
-      Alert.alert('Success', 'Order deleted successfully');
-
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'TableDashboard' }],
-      });
+      Alert.alert('Success', 'Order deleted successfully', [
+        {
+          text: 'OK',
+          onPress: () => {
+            if (routeOrderId != null) {
+              navigation.goBack();
+            } else {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'TableDashboard' }],
+              });
+            }
+          },
+        },
+      ]);
     } catch (error: any) {
       Alert.alert(
         'Delete Failed',
