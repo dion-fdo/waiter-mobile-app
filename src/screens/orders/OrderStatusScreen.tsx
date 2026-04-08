@@ -61,7 +61,7 @@ function getStatusText(orderStatus: number): string {
 
 export default function OrderStatusScreen({ navigation, route}: Props) {
   const routeOrderId = route.params?.orderId;
-  const { placedOrder, ensureValidToken } = useAppContext();
+  const { placedOrder, ensureValidToken, selectedTable, selectedWaiter } = useAppContext();
 
   const [loading, setLoading] = useState(true);
   const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse['data'] | null>(null);
@@ -123,10 +123,10 @@ export default function OrderStatusScreen({ navigation, route}: Props) {
           Order ID: {orderDetails?.orderinfo?.order_id ?? placedOrder?.id ?? '--'}
         </Text>
         <Text style={styles.infoText}>
-          Table: {placedOrder?.table?.number ?? '--'}
+          Table: {selectedTable?.name ?? selectedTable?.number ?? '--'}
         </Text>
         <Text style={styles.infoText}>
-          Waiter: {placedOrder?.waiter?.name ?? 'Not selected'}
+          Waiter: {placedOrder?.waiter?.name ?? selectedWaiter?.name ?? selectedWaiter?.email ?? 'Not selected'}
         </Text>
         <Text style={styles.infoText}>
           Current Status: {getStatusText(orderDetails?.orderinfo?.status ?? 1)}

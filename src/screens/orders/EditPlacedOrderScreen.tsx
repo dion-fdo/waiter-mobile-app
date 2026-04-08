@@ -40,7 +40,9 @@ export default function EditPlacedOrderScreen({ navigation }: Props) {
 
             if (success) {
               Alert.alert('Success', 'Order updated successfully');
-              navigation.replace('OrderDetails');
+              navigation.replace('OrderDetails', {
+                orderId: placedOrder?.id ? Number(placedOrder.id) : undefined,
+              });
             } else {
               Alert.alert('Update Failed', 'Could not update the order');
             }

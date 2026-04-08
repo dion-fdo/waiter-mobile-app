@@ -255,7 +255,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
       item.status === 'free'
         ? '#DDDDDD'
         : item.status === 'partially_occupied'
-        ? '#f9dea9'
+        ? '#f9e6a9'
         : '#FF9D92';
 
     const cornerBg =
@@ -326,7 +326,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
         ]}
       >
         <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color="#F05A22" />
+        <ActivityIndicator size="large" color="#F05822" />
         <Text style={styles.loadingText}>Loading tables...</Text>
       </View>
     );
@@ -405,8 +405,8 @@ export default function TableDashboardScreen({ navigation }: Props) {
           styles.screenTitle,
           {
             fontSize: 16 * scale,
-            marginTop: 20 * scaleH,
-            marginBottom: 20 * scaleH,
+            marginTop: 15 * scaleH,
+            marginBottom: 15 * scaleH,
           },
         ]}
       >
@@ -438,7 +438,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
           {
             width: '72%',
             alignSelf: 'center',
-            height: 62 * scaleH,
+            height: 75 * scaleH,
             borderTopLeftRadius: 22 * scale,
             borderTopRightRadius: 22 * scale,
             paddingHorizontal: 18 * scaleW,
