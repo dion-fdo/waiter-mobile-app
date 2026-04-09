@@ -334,9 +334,9 @@ const styles = StyleSheet.create({
   },
 
   emptyBox: {
-    backgroundColor: '#000000',
+    backgroundColor: '#efefef',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#c3c3c3',
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
