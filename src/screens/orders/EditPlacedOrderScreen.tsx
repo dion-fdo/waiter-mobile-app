@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ffd2bb',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#7c7c7c',
+    borderColor: '#000000',
     paddingVertical: 15,
     borderRadius: 12,
     alignItems: 'center',
@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: '#4b4b4b',
+    color: '#000000',
     fontSize: 15,
     fontWeight: '700',
   },
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
   },
 
   addIconText: {
-    color: '#F05822',
+    color: '#000000',
     fontSize: 24,
     fontWeight: '700',
     lineHeight: 24,

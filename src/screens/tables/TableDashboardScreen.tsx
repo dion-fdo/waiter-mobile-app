@@ -79,8 +79,6 @@ export default function TableDashboardScreen({ navigation }: Props) {
       );
 
       if (activeTableOrders.length > 0) {
-        setSelectedTable(table);
-
         navigation.navigate('TableOrders', {
           tableId: Number(table.id),
           tableName: table.name ?? `Table ${table.number}`,

@@ -68,6 +68,8 @@ type AppContextType = {
   selectedCustomer: Customer | null;
   setSelectedCustomer: (customer: Customer | null) => void;
 
+  saveCurrentTableDraft: () => Promise<void>;
+
   cartItems: CartItem[];
   
   serviceCharge: number;
@@ -212,6 +214,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const saveCurrentTableDraft = async () => {
+    if (!selectedTable) return;
+
+    await saveDraftForTable(
+      selectedTable,
+      cartItems,
+      selectedCustomer,
+      selectedPersonCount
+    );
+  };
+
   const clearDraftForTable = async (tableId: string) => {
     try {
       const drafts = await getAllTableDraftsFromStorage();
@@ -222,28 +235,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  useEffect(() => {
-    const saveCurrentTableDraft = async () => {
-      if (!selectedTable) return;
+  const saveDraftForTable = async (
+    table: RestaurantTable,
+    items: CartItem[],
+    customer: Customer | null,
+    personCount: number
+  ) => {
+    try {
+      const drafts = await getAllTableDraftsFromStorage();
 
-      try {
-        const drafts = await getAllTableDraftsFromStorage();
-
-        drafts[selectedTable.id] = {
-        table: selectedTable,
-        cartItems,
-        selectedCustomer,
-        selectedPersonCount,
+      drafts[String(table.id)] = {
+        table,
+        cartItems: cloneCartItems(items),
+        selectedCustomer: customer,
+        selectedPersonCount: personCount,
       };
 
-        await saveAllTableDraftsToStorage(drafts);
-      } catch (error) {
-        console.log('Failed to save current table draft', error);
-      }
-    };
-
-    saveCurrentTableDraft();
-  }, [selectedTable, cartItems, selectedCustomer, selectedPersonCount]);
+      await saveAllTableDraftsToStorage(drafts);
+    } catch (error) {
+      console.log('Failed to save draft for table', error);
+    }
+  };
 
   const ensureValidToken = async () => {
     if (authToken && tokenExpiryTime && Date.now() < tokenExpiryTime - 30000) {
@@ -340,10 +352,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const total = subtotal + serviceCharge;
 
   const startNewOrderSession = async (table: RestaurantTable) => {
+  // save current table draft before switching away
+    if (selectedTable) {
+      await saveDraftForTable(
+        selectedTable,
+        cartItems,
+        selectedCustomer,
+        selectedPersonCount
+      );
+    }
+
+    // read next table draft first
+    const drafts = await getAllTableDraftsFromStorage();
+    const nextDraft = drafts[String(table.id)];
+
     setSelectedTable(table);
     setPlacedOrder(null);
     setEditOrderItems([]);
-    await loadDraftForTable(table);
+    setIsEditingPlacedOrder(false);
+
+    if (nextDraft) {
+      setCartItems(nextDraft.cartItems ?? []);
+      setSelectedCustomer(nextDraft.selectedCustomer ?? null);
+      setSelectedPersonCount(nextDraft.selectedPersonCount ?? 1);
+    } else {
+      setCartItems([]);
+      setSelectedCustomer(null);
+      setSelectedPersonCount(1);
+    }
   };
 
   const placeOrder = async (): Promise<boolean> => {
@@ -597,6 +633,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedCustomer,
       setSelectedCustomer,
 
+      saveCurrentTableDraft,
+
       cartItems,
       serviceCharge,
       subtotal,
@@ -641,6 +679,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedPersonCount,
       selectedCustomer,
       cartItems,
+      saveCurrentTableDraft,
       subtotal,
       serviceCharge,
       total,

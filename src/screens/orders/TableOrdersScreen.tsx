@@ -105,7 +105,6 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
       status: tableStatus,
     } as any;
 
-    setSelectedTable(table);
     await startNewOrderSession(table);
     setSelectedPersonCount(1);
     navigation.navigate('CustomerSelection');
@@ -363,8 +362,8 @@ const styles = StyleSheet.create({
     marginHorizontal: -16,
     marginBottom: -20,
     paddingHorizontal: 16,
-    borderTopLeftRadius: 60,
-    borderTopRightRadius: 60,
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
     backgroundColor: '#ffffff',
     alignItems: 'center',
   },

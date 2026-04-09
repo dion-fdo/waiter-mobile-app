@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   useWindowDimensions,
-  Image
+  Image,
+  Animated,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
@@ -34,7 +35,6 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
     setSelectedCustomer,
   } = useAppContext();
 
-
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const scaleW = width / DESIGN_WIDTH;
@@ -51,6 +51,9 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>('1');
 
   const [addModalVisible, setAddModalVisible] = useState(false);
+
+  const sheetTranslateY = useRef(new Animated.Value(300)).current;
+
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
@@ -104,6 +107,17 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
     return () => clearTimeout(timeout);
   }, [searchName, searchPhone]);
 
+  useEffect(() => {
+    if (addModalVisible) {
+      sheetTranslateY.setValue(300);
+      Animated.timing(sheetTranslateY, {
+        toValue: 0,
+        duration: 260,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [addModalVisible, sheetTranslateY]);
+
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
     setSelectedCustomerId(customer.id);
@@ -117,17 +131,14 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
     navigation.navigate('Category');
   };
 
-  //function to add customer
   const handleAddCustomer = async () => {
     let valid = true;
 
-    //check whether customer name is empty
     if (!newCustomerName.trim()) {
       setNameError('Customer name is required!');
       valid = false;
     }
 
-    //check whether customer phone number is empty with validations
     if (!newCustomerPhone.trim()) {
       setPhoneError('Phone number is required!');
       valid = false;
@@ -178,13 +189,18 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
     );
   }, [searchText, customers]);
 
-  //reset input fields after closing modal
   const closeModal = () => {
-    setNewCustomerName('');
-    setNewCustomerPhone('');
-    setNameError('');
-    setPhoneError('');
-    setAddModalVisible(false);
+    Animated.timing(sheetTranslateY, {
+      toValue: 300,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      setNameError('');
+      setPhoneError('');
+      setAddModalVisible(false);
+    });
   };
 
   const renderCustomer = ({ item }: { item: Customer }) => {
@@ -219,558 +235,725 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
 
   if (loadingCustomers) {
     return (
-      <View style={[styles.container, styles.centered, {
-        paddingTop: 16 * scaleH,
-        paddingHorizontal: 16 * scaleW,
-      }]}>
-        <ActivityIndicator size="large" />
-        <Text style={[styles.loadingText, { fontSize: 14 * scale, marginTop: 12 * scaleH }]}>
-          Loading customers...
-        </Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View
+          style={[
+            styles.container,
+            styles.centered,
+            {
+              paddingTop: 16 * scaleH,
+              paddingHorizontal: 16 * scaleW,
+            },
+          ]}
+        >
+          <ActivityIndicator size="large" />
+          <Text
+            style={[
+              styles.loadingText,
+              { fontSize: 14 * scale, marginTop: 12 * scaleH },
+            ]}
+          >
+            Loading customers...
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[
-      styles.container,
-      {
-        paddingTop: 16 * scaleH,
-        paddingHorizontal: 16 * scaleW,
-      },
-    ]}>
-      <View style={styles.topContent}>
-        <Text style={[styles.header, { fontSize: 24 * scale, marginBottom: 6 * scaleH }]}>
-          Select Customer
-        </Text>
-
-        {selectedTable ? (
-          <Text style={[styles.subText, { fontSize: 14 * scale, marginBottom: 10 * scaleH }]}>
-            Table {selectedTable.number}
-          </Text>
-        ) : null}
-
-        <Text style={[styles.subText, { fontSize: 14 * scale, marginBottom: 10 * scaleH }]}>
-          Customer type: Dine-in
-        </Text>
-
-        {!dropdownOpen ? (
-          <Pressable
+    <SafeAreaView style={styles.safeArea}>
+      <View
+        style={[
+          styles.container,
+          {
+            paddingTop: 8 * scaleH,
+            paddingHorizontal: 16 * scaleW,
+          },
+        ]}
+      >
+        <View style={styles.topContent}>
+          <View
             style={[
-              styles.closedInputContainer,
+              styles.topCard,
               {
-                borderRadius: 12 * scale,
-                paddingHorizontal: 12 * scaleW,
-                minHeight: 46 * scaleH,
-                marginBottom: 10 * scaleH,
+                borderRadius: 18 * scale,
+                paddingVertical: 14 * scaleH,
+                paddingHorizontal: 16 * scaleW,
+                marginBottom: 16 * scaleH,
               },
             ]}
-            onPress={() => {
-              setSearchText('');
-              setDropdownOpen(true);
-            }}
           >
-            <Text
-              style={[
-                styles.searchInput,
-                { fontStyle: 'italic', color: '#2E2E2E', fontSize: 14 * scale },
-              ]}
-              numberOfLines={1}
-            >
-              {selectedCustomer?.name || 'Walkin'}
-            </Text>
-            <View style={styles.dropdownArrow}>
-              <Image
-                source={require('../../../assets/icons/arrow-down.png')}
-                style={{
-                  width: 32 * scale,
-                  height: 32 * scale,
-                  tintColor: '#F05822',
-                }}
-                resizeMode="contain"
-              />
+            <View style={styles.topCardRow}>
+              <Text style={[styles.topCardTableText, { fontSize: 17 * scale }]}>
+                {selectedTable ? `Table ${selectedTable.number}` : '--'}
+              </Text>
+
+              <Pressable
+                style={[
+                  styles.addIconButton,
+                  {
+                    width: 34 * scale,
+                    height: 34 * scale,
+                    borderRadius: 10 * scale,
+                  },
+                ]}
+                onPress={() => setAddModalVisible(true)}
+              >
+                <Text style={[styles.addIconText, { fontSize: 24 * scale }]}>+</Text>
+              </Pressable>
             </View>
-          </Pressable>
-        ) : (
 
-          <View
-            style={[
-              styles.openDropdownCard,
-              {
-                borderRadius: 16 * scale,
-                padding: 10 * scale,
-                maxHeight: height * 0.42,
-                marginBottom: 10 * scaleH,
-              },
-            ]}
-          >
-          <View
-            style={[
-              styles.openSearchBar,
-              {
-                borderRadius: 12 * scale,
-                paddingHorizontal: 12 * scaleW,
-                minHeight: 50 * scaleH,
-                marginBottom: 10 * scaleH,
-                flexDirection: 'row',        
-                alignItems: 'center',       
-              },
-            ]}
-          >
-            <TextInput
-              style={[
-                styles.searchInputField,
-                { fontSize: 14 * scale, paddingVertical: 10 * scaleH },
-              ]}
-              placeholder={selectedCustomer?.name || 'Search by name or phone...'}
-              placeholderTextColor="#888888"
-              value={searchText}
-              onChangeText={setSearchText}
-              autoFocus
-            />
+            <Text style={[styles.topTitle, { fontSize: 24 * scale, marginBottom: 10 * scaleH }]}>
+              Select Customer
+            </Text>
 
-            <View style={styles.searchIconWrap}>
-              <Image
-                source={require('../../../assets/icons/search.png')}
-                style={{
-                  width: 20 * scale,
-                  height: 20 * scale,
-                  tintColor: '#F05822',
-                }}
-                resizeMode="contain"
-              />
+            <View style={styles.topBottomRow}>
+              <View>
+                <Text style={[styles.topMetaText, { fontSize: 14 * scale }]}>
+                  Customer type : Dine-in
+                </Text>
+              </View>
+
+              <Text style={[styles.topMetaText, { fontSize: 14 * scale }]}>
+                {customers.length} Customers
+              </Text>
             </View>
           </View>
 
-            <FlatList
-              data={filteredCustomers}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => {
-                const isSelected = selectedCustomerId === item.id;
-                return (
-                  <Pressable
-                    style={[
-                      styles.dropdownItem,
-                      isSelected && styles.dropdownItemSelected,
-                      {
-                        paddingVertical: 12 * scaleH,
-                        paddingHorizontal: 12 * scaleW,
-                        borderRadius: isSelected ? 10 * scale : 0,
-                      },
-                    ]}
-                    onPress={() => {
-                      setSelectedCustomer(item);
-                      setSelectedCustomerId(item.id);
-                      setSearchText('');
-                      setDropdownOpen(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.dropdownItemText,
-                        isSelected && styles.dropdownItemTextSelected,
-                        { fontSize: 14 * scale },
-                      ]}
-                    >
-                      {item.name}
-                      <Text style={{ color: '#6B7280', fontWeight: '400', fontSize: 13 * scale }}>
-                        {' '}({item.phone})
-                      </Text>
-                    </Text>
-                  </Pressable>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={[styles.emptyBox, { padding: 16 * scale }]}>
-                  <Text style={[styles.emptyText, { fontSize: 14 * scale }]}>
-                    No customers found.
-                  </Text>
-                </View>
-              }
-            />
-
+          {!dropdownOpen ? (
             <Pressable
-              style={[styles.bottomArrowWrap, { marginTop: 8 * scaleH }]}
+              style={[
+                styles.closedInputContainer,
+                {
+                  borderRadius: 14 * scale,
+                  paddingHorizontal: 14 * scaleW,
+                  minHeight: 52 * scaleH,
+                  marginBottom: 12 * scaleH,
+                },
+              ]}
               onPress={() => {
                 setSearchText('');
-                setDropdownOpen(false);
+                setDropdownOpen(true);
               }}
-              hitSlop={12}
             >
+              <Text
+                style={[
+                  styles.searchInput,
+                  {
+                    fontStyle: 'italic',
+                    color: '#2E2E2E',
+                    fontSize: 15 * scale,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {selectedCustomer?.name || 'Walkin'}
+              </Text>
+
               <View style={styles.dropdownArrow}>
                 <Image
-                  source={require('../../../assets/icons/arrow-up.png')}
+                  source={require('../../../assets/icons/arrow-down.png')}
                   style={{
-                    width: 32 * scale,
-                    height: 32 * scale,
+                    width: 28 * scale,
+                    height: 28 * scale,
                     tintColor: '#F05822',
                   }}
                   resizeMode="contain"
                 />
               </View>
             </Pressable>
-          </View>
-        )}
-      </View>
-
-      <View style={[
-        styles.bottomSection,
-        {
-          paddingBottom: insets.bottom + 16 * scaleH, 
-          gap: 10 * scaleH,
-        },
-      ]}>
-        <Pressable
-          style={[
-            styles.addButton,
-            {
-              borderRadius: 12 * scale,
-              paddingVertical: 12 * scaleH,
-            },
-          ]}
-          onPress={() => setAddModalVisible(true)}
-        >
-          <Text style={[styles.addButtonText, { fontSize: 15 * scale }]}>
-            Add Customer
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={[
-            styles.continueButton,
-            {
-              borderRadius: 12 * scale,
-              paddingVertical: 14 * scaleH,
-            },
-          ]}
-          onPress={handleContinue}
-        >
-          <Text style={[styles.continueButtonText, { fontSize: 16 * scale }]}>
-            Continue
-          </Text>
-        </Pressable>
-      </View>
-
-      <Modal
-        visible={addModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => closeModal()}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => closeModal()}
-          />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
+          ) : (
             <View
               style={[
-                styles.bottomSheet,
+                styles.openDropdownCard,
                 {
-                  borderTopLeftRadius: 24 * scale,
-                  borderTopRightRadius: 24 * scale,
-                  paddingHorizontal: 24 * scaleW,
-                  paddingTop: 20 * scaleH,
-                  paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 16 * scaleH : 24 * scaleH),
+                  borderRadius: 18 * scale,
+                  padding: 10 * scale,
+                  maxHeight: height * 0.42,
+                  marginBottom: 12 * scaleH,
                 },
               ]}
             >
-
-              <View style={[
-                styles.dragHandle,
-                {
-                  width: 40 * scaleW,
-                  height: 4 * scaleH,
-                  marginBottom: 20 * scaleH,
-                },
-              ]} />
-
-              <Text style={[styles.modalTitle, { fontSize: 18 * scale, marginBottom: 20 * scaleH }]}>
-                Add Customer
-              </Text>
-
-              {/* Name input */}
-              <Text style={[styles.modalLabel, { fontSize: 13 * scale, marginBottom: 6 * scaleH }]}>
-                Customer Name
-              </Text>
-              <TextInput
+              <View
                 style={[
-                  styles.modalInput,
-                  {
-                    fontSize: 15 * scale,
-                    borderRadius: 12 * scale,
-                    paddingHorizontal: 14 * scaleW,
-                    paddingVertical: 12 * scaleH,
-                    marginBottom: nameError ? 4 * scaleH : 16 * scaleH,
-                    borderColor: nameError ? '#EF4444' : '#E5E7EB',
-                  },
-                ]}
-                placeholder="Enter customer name"
-                placeholderTextColor="#9CA3AF"
-                value={newCustomerName}
-                onChangeText={(text) => {
-                  setNewCustomerName(text);
-                  if (text.trim().length > 0) setNameError('');
-                }}
-              />
-              {nameError ? (
-                <Text style={[styles.validationError, { fontSize: 12 * scale, marginBottom: 12 * scaleH }]}>
-                  {nameError}
-                </Text>
-              ) : null}
-
-              {/* Phone input */}
-              <Text style={[styles.modalLabel, { fontSize: 13 * scale, marginBottom: 6 * scaleH }]}>
-                Phone Number
-              </Text>
-              {phoneError ? (
-                <Text style={[styles.validationError, { fontSize: 12 * scale, marginBottom: 4 * scaleH }]}>
-                  {phoneError}
-                </Text>
-              ) : null}
-              <TextInput
-                style={[
-                  styles.modalInput,
-                  {
-                    fontSize: 15 * scale,
-                    borderRadius: 12 * scale,
-                    paddingHorizontal: 14 * scaleW,
-                    paddingVertical: 12 * scaleH,
-                    marginBottom: 24 * scaleH,
-                    borderColor: phoneError ? '#EF4444' : '#E5E7EB',
-                  },
-                ]}
-                placeholder="07XXXXXXXX"
-                placeholderTextColor="#9CA3AF"
-                value={newCustomerPhone}
-                onChangeText={(text) => {
-                  // Removes any non-numeric characters immediately
-                  const numericOnly = text.replace(/[^0-9]/g, '');
-                  setNewCustomerPhone(numericOnly);
-
-                  //checks if number length is 0
-                  if (numericOnly.length === 0) {
-                    setPhoneError('');
-                  } else if (!/^\d+$/.test(numericOnly)) {         //checks whether non numeric characters are included
-                    setPhoneError('Only numbers are allowed.');
-                  } else if (numericOnly.length < 10 || numericOnly.length > 10) {           //validates phone number length
-                    setPhoneError('Phone number must be exactly 10 digits.');
-                  } else if (!/^0[0-9]{9}$/.test(numericOnly)) {                            //allowed phone number format
-                    setPhoneError('Phone number must start with 0 (e.g. 07XXXXXXXX).');
-                  } else {
-                    setPhoneError('');
-                  }
-                }}
-                keyboardType="phone-pad"
-                maxLength={10}
-              />
-
-              {/* Add button */}
-              <Pressable
-                style={[
-                  styles.modalAddButton,
+                  styles.openSearchBar,
                   {
                     borderRadius: 12 * scale,
-                    paddingVertical: 14 * scaleH,
-                    marginBottom: 12 * scaleH,
+                    paddingHorizontal: 12 * scaleW,
+                    minHeight: 50 * scaleH,
+                    marginBottom: 10 * scaleH,
+                    flexDirection: 'row',
+                    alignItems: 'center',
                   },
                 ]}
-                onPress={handleAddCustomer}
-                disabled={creatingCustomer}
               >
-                <Text style={[styles.modalAddButtonText, { fontSize: 16 * scale }]}>
-                  {creatingCustomer ? 'Adding...' : 'Add Customer'}
-                </Text>
-              </Pressable>
+                <TextInput
+                  style={[
+                    styles.searchInputField,
+                    { fontSize: 14 * scale, paddingVertical: 10 * scaleH },
+                  ]}
+                  placeholder={selectedCustomer?.name || 'Search by name or phone...'}
+                  placeholderTextColor="#888888"
+                  value={searchText}
+                  onChangeText={setSearchText}
+                  autoFocus
+                />
 
-              {/* Cancel button */}
+                <View style={styles.searchIconWrap}>
+                  <Image
+                    source={require('../../../assets/icons/search.png')}
+                    style={{
+                      width: 20 * scale,
+                      height: 20 * scale,
+                      tintColor: '#F05822',
+                    }}
+                    resizeMode="contain"
+                  />
+                </View>
+              </View>
+
+              <FlatList
+                data={filteredCustomers}
+                keyExtractor={(item) => item.id}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => {
+                  const isSelected = selectedCustomerId === item.id;
+                  return (
+                    <Pressable
+                      style={[
+                        styles.dropdownItem,
+                        isSelected && styles.dropdownItemSelected,
+                        {
+                          paddingVertical: 12 * scaleH,
+                          paddingHorizontal: 12 * scaleW,
+                          borderRadius: isSelected ? 10 * scale : 0,
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedCustomer(item);
+                        setSelectedCustomerId(item.id);
+                        setSearchText('');
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          isSelected && styles.dropdownItemTextSelected,
+                          { fontSize: 14 * scale },
+                        ]}
+                      >
+                        {item.name}
+                        <Text
+                          style={{
+                            color: '#6B7280',
+                            fontWeight: '400',
+                            fontSize: 13 * scale,
+                          }}
+                        >
+                          {' '}({item.phone})
+                        </Text>
+                      </Text>
+                    </Pressable>
+                  );
+                }}
+                ListEmptyComponent={
+                  <View style={[styles.emptyBox, { padding: 16 * scale }]}>
+                    <Text style={[styles.emptyText, { fontSize: 14 * scale }]}>
+                      No customers found.
+                    </Text>
+                  </View>
+                }
+              />
+
               <Pressable
-                style={[
-                  styles.modalCancelButton,
-                  {
-                    borderRadius: 12 * scale,
-                    paddingVertical: 14 * scaleH,
-                  },
-                ]}
+                style={[styles.bottomArrowWrap, { marginTop: 8 * scaleH }]}
                 onPress={() => {
-                  setNewCustomerName('');
-                  setNewCustomerPhone('');
-                  closeModal();
+                  setSearchText('');
+                  setDropdownOpen(false);
                 }}
+                hitSlop={12}
               >
-                <Text style={[styles.modalCancelButtonText, { fontSize: 16 * scale }]}>
-                  Cancel
-                </Text>
+                <View style={styles.dropdownArrow}>
+                  <Image
+                    source={require('../../../assets/icons/arrow-up.png')}
+                    style={{
+                      width: 28 * scale,
+                      height: 28 * scale,
+                      tintColor: '#F05822',
+                    }}
+                    resizeMode="contain"
+                  />
+                </View>
               </Pressable>
             </View>
-          </KeyboardAvoidingView>
+          )}
         </View>
-      </Modal>
-    </View>
+
+        <View
+          style={[
+            styles.bottomSection,
+            {
+              paddingBottom: insets.bottom + 16 * scaleH,
+              gap: 10 * scaleH,
+            },
+          ]}
+        >
+          <Pressable
+            style={[
+              styles.continueButton,
+              {
+                borderRadius: 14 * scale,
+                paddingVertical: 15 * scaleH,
+              },
+            ]}
+            onPress={handleContinue}
+          >
+            <Text style={[styles.continueButtonText, { fontSize: 16 * scale }]}>
+              Continue
+            </Text>
+          </Pressable>
+        </View>
+
+        <Modal
+          visible={addModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeModal}
+        >
+          <View style={styles.modalOverlay}>
+            <Pressable style={styles.modalBackdrop} onPress={() => closeModal()} />
+
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+              <Animated.View
+                style={[
+                  styles.bottomSheet,
+                  {
+                    borderTopLeftRadius: 28 * scale,
+                    borderTopRightRadius: 28 * scale,
+                    paddingHorizontal: 24 * scaleW,
+                    paddingTop: 20 * scaleH,
+                    paddingBottom:
+                      insets.bottom + 24 * scaleH,
+                    transform: [{ translateY: sheetTranslateY }],
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.dragHandle,
+                    {
+                      width: 40 * scaleW,
+                      height: 4 * scaleH,
+                      marginBottom: 20 * scaleH,
+                    },
+                  ]}
+                />
+
+                <Text
+                  style={[
+                    styles.modalTitle,
+                    { fontSize: 18 * scale, marginBottom: 20 * scaleH },
+                  ]}
+                >
+                  Add Customer
+                </Text>
+
+                <Text
+                  style={[
+                    styles.modalLabel,
+                    { fontSize: 13 * scale, marginBottom: 6 * scaleH },
+                  ]}
+                >
+                  Customer Name
+                </Text>
+
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    {
+                      fontSize: 15 * scale,
+                      borderRadius: 12 * scale,
+                      paddingHorizontal: 14 * scaleW,
+                      paddingVertical: 12 * scaleH,
+                      marginBottom: nameError ? 4 * scaleH : 16 * scaleH,
+                      borderColor: nameError ? '#EF4444' : '#E5E7EB',
+                    },
+                  ]}
+                  placeholder="Enter customer name"
+                  placeholderTextColor="#9CA3AF"
+                  value={newCustomerName}
+                  onChangeText={(text) => {
+                    setNewCustomerName(text);
+                    if (text.trim().length > 0) setNameError('');
+                  }}
+                />
+
+                {nameError ? (
+                  <Text
+                    style={[
+                      styles.validationError,
+                      { fontSize: 12 * scale, marginBottom: 12 * scaleH },
+                    ]}
+                  >
+                    {nameError}
+                  </Text>
+                ) : null}
+
+                <Text
+                  style={[
+                    styles.modalLabel,
+                    { fontSize: 13 * scale, marginBottom: 6 * scaleH },
+                  ]}
+                >
+                  Phone Number
+                </Text>
+
+                {phoneError ? (
+                  <Text
+                    style={[
+                      styles.validationError,
+                      { fontSize: 12 * scale, marginBottom: 4 * scaleH },
+                    ]}
+                  >
+                    {phoneError}
+                  </Text>
+                ) : null}
+
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    {
+                      fontSize: 15 * scale,
+                      borderRadius: 12 * scale,
+                      paddingHorizontal: 14 * scaleW,
+                      paddingVertical: 12 * scaleH,
+                      marginBottom: 24 * scaleH,
+                      borderColor: phoneError ? '#EF4444' : '#E5E7EB',
+                    },
+                  ]}
+                  placeholder="07XXXXXXXX"
+                  placeholderTextColor="#9CA3AF"
+                  value={newCustomerPhone}
+                  onChangeText={(text) => {
+                    const numericOnly = text.replace(/[^0-9]/g, '');
+                    setNewCustomerPhone(numericOnly);
+
+                    if (numericOnly.length === 0) {
+                      setPhoneError('');
+                    } else if (!/^\d+$/.test(numericOnly)) {
+                      setPhoneError('Only numbers are allowed.');
+                    } else if (numericOnly.length < 10 || numericOnly.length > 10) {
+                      setPhoneError('Phone number must be exactly 10 digits.');
+                    } else if (!/^0[0-9]{9}$/.test(numericOnly)) {
+                      setPhoneError('Phone number must start with 0 (e.g. 07XXXXXXXX).');
+                    } else {
+                      setPhoneError('');
+                    }
+                  }}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+
+                <Pressable
+                  style={[
+                    styles.modalAddButton,
+                    {
+                      borderRadius: 12 * scale,
+                      paddingVertical: 14 * scaleH,
+                      marginBottom: 12 * scaleH,
+                    },
+                  ]}
+                  onPress={handleAddCustomer}
+                  disabled={creatingCustomer}
+                >
+                  <Text
+                    style={[
+                      styles.modalAddButtonText,
+                      { fontSize: 16 * scale },
+                    ]}
+                  >
+                    {creatingCustomer ? 'Adding...' : 'Add Customer'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.modalCancelButton,
+                    {
+                      borderRadius: 12 * scale,
+                      paddingVertical: 14 * scaleH,
+                    },
+                  ]}
+                  onPress={() => {
+                    setNewCustomerName('');
+                    setNewCustomerPhone('');
+                    closeModal();
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalCancelButtonText,
+                      { fontSize: 16 * scale },
+                    ]}
+                  >
+                    Cancel
+                  </Text>
+                </Pressable>
+              </Animated.View>
+            </KeyboardAvoidingView>
+          </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+
   topContent: {
     flex: 1,
   },
-  bottomSection: {
-  },
+
+  bottomSection: {},
+
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   loadingText: {
     color: '#6B7280',
   },
-  header: {
-    fontWeight: '700',
-    color: '#111827',
+
+  topCard: {
+    backgroundColor: '#F05822',
   },
+
+  topCardRow: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+
+  topCardTableText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+
+  addIconButton: {
+    position: 'absolute',
+    right: 0,
+    top: -2,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  addIconText: {
+    color: '#000000',
+    fontWeight: '700',
+    lineHeight: 24,
+  },
+
+  topTitle: {
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+
+  topBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+
+  topMetaText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+
   subText: {
     color: '#6B7280',
   },
+
   closedInputContainer: {
     width: '100%',
-    backgroundColor: '#EAEAEA',
+    backgroundColor: '#F4F4F4',
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
+
   openDropdownCard: {
     width: '100%',
-    backgroundColor: '#DCDCDC',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
+
   openSearchBar: {
-    backgroundColor: '#F4F4F4',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
+
   searchInput: {
     flex: 1,
     color: '#111827',
   },
+
   searchInputField: {
     flex: 1,
     color: '#000',
   },
+
   dropdownItem: {},
+
   dropdownItemSelected: {
     backgroundColor: '#FFF7ED',
   },
+
   dropdownItemText: {
     color: '#111827',
   },
+
   dropdownItemTextSelected: {
     color: '#F05822',
     fontWeight: '600',
   },
+
   dropdownArrow: {
     color: '#F05822',
     marginLeft: 8,
   },
+
   bottomArrowWrap: {
     alignItems: 'flex-end',
   },
+
   emptyBox: {
     alignItems: 'center',
   },
+
   emptyText: {
     color: '#6B7280',
   },
+
   customerCard: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
+
   selectedCustomerCard: {
     borderColor: '#F05822',
     backgroundColor: '#FFF7ED',
   },
+
   customerName: {
     fontWeight: '700',
     color: '#111827',
   },
+
   customerPhone: {
     color: '#6B7280',
   },
+
   membershipText: {
     color: '#F05822',
     fontWeight: '600',
   },
-  addButton: {
-    backgroundColor: '#111827',
-    alignItems: 'center',
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
+
   continueButton: {
     backgroundColor: '#F05822',
     alignItems: 'center',
   },
+
   continueButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
   },
+
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.8)',
   },
+
   modalBackdrop: {
     flex: 1,
   },
+
   bottomSheet: {
     backgroundColor: '#FFFFFF',
     width: '100%',
   },
+
   dragHandle: {
     backgroundColor: '#E5E7EB',
     borderRadius: 2,
     alignSelf: 'center',
   },
+
   modalTitle: {
     fontWeight: '700',
-    color: '#111827',
+    color: '#F05822',
   },
+
   modalLabel: {
     color: '#6B7280',
     fontWeight: '500',
   },
+
   modalInput: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     color: '#111827',
   },
+
   modalAddButton: {
     backgroundColor: '#F05822',
     alignItems: 'center',
   },
+
   modalAddButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
   },
+
   modalCancelButton: {
-    backgroundColor: '#111827',
+    backgroundColor: '#ffffff',
     alignItems: 'center',
   },
+
   modalCancelButtonText: {
-    color: '#FFFFFF',
+    color: '#373737',
     fontWeight: '600',
   },
+
   searchIconWrap: {
     marginLeft: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   validationError: {
     color: '#EF4444',
     fontWeight: '500',

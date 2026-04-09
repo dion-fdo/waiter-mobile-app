@@ -43,7 +43,9 @@ export default function CartScreen({ navigation }: Props) {
             const success = await placeOrder();
 
             if (success) {
-              navigation.navigate('OrderDetails');
+              navigation.navigate('OrderDetails', {
+                orderId: undefined,
+              });
             } else {
               Alert.alert('Order placement failed');
             }
