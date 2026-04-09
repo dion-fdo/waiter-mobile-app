@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     width: 45,
     height: 45,
     borderRadius: 10,
-    backgroundColor: '#111111',
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
 
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 190, 155, 0.2)',
+    backgroundColor: 'rgba(255, 220, 202, 0.2)',
   },
 
   cardLabelWrap: {
@@ -548,12 +548,13 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 0,
     backgroundColor: 'transparent',
+    alignItems: 'center',
   },
 
   cartButton: {
-    width: '100%',
+    width: '80%',
     backgroundColor: '#F05822',
-    minHeight: 64,
+    minHeight: 74,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 0,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { MenuItem, MenuAddOn } from '../../types/menuItem';
 import { useAppContext } from '../../context/AppContext';
@@ -35,6 +36,8 @@ function buildSelectedAddOn(
 export default function ItemModal({ visible, onClose, item }: Props) {
   const { addToCart, isEditingPlacedOrder } = useAppContext();
 
+  const sheetTranslateY = useRef(new Animated.Value(320)).current;
+
   const defaultVariantName = item?.variants?.[0]?.variantName;
   const [selectedVariantName, setSelectedVariantName] = useState<string>(
     defaultVariantName ?? ''
@@ -51,6 +54,27 @@ export default function ItemModal({ visible, onClose, item }: Props) {
     setNote('');
     setSelectedAddOnIds([]);
   }, [item, visible]);
+
+  useEffect(() => {
+    if (visible) {
+      sheetTranslateY.setValue(320);
+      Animated.timing(sheetTranslateY, {
+        toValue: 0,
+        duration: 260,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible, sheetTranslateY]);
+
+  const handleCloseModal = () => {
+    Animated.timing(sheetTranslateY, {
+      toValue: 320,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      onClose();
+    });
+  };
 
   const selectedVariant = useMemo(() => {
     return item?.variants?.find(
@@ -99,16 +123,27 @@ export default function ItemModal({ visible, onClose, item }: Props) {
       note: note.trim(),
     });
 
-    onClose();
+    handleCloseModal();
   };
 
   if (!item) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+    <Modal
+  visible={visible}
+  transparent
+  animationType="fade"
+  onRequestClose={handleCloseModal}
+>
+  <View style={styles.overlay}>
+    <Pressable style={styles.backdrop} onPress={handleCloseModal} />
+      <Animated.View
+        style={[
+          styles.modal,
+          { transform: [{ translateY: sheetTranslateY }] },
+        ]}
+      >
+        <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.title}>{item.name}</Text>
             <Text style={styles.price}>LKR {displayPrice.toFixed(2)}</Text>
 
@@ -197,11 +232,11 @@ export default function ItemModal({ visible, onClose, item }: Props) {
               <Text style={styles.addBtnText}>Add to Cart</Text>
             </Pressable>
 
-            <Pressable style={styles.cancelBtn} onPress={onClose}>
+            <Pressable style={styles.cancelBtn} onPress={handleCloseModal}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </Pressable>
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -210,20 +245,20 @@ export default function ItemModal({ visible, onClose, item }: Props) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'flex-end',
   },
   modal: {
     backgroundColor: '#FFFFFF',
     padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     maxHeight: '85%',
   },
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
+    color: '#F05822',
   },
   price: {
     fontSize: 16,
@@ -254,7 +289,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
   selectedOption: {
-    backgroundColor: '#FDBA74',
+    backgroundColor: '#FFF7ED',
     borderColor: '#F05822',
   },
   optionText: {
@@ -350,4 +385,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  }
 });
