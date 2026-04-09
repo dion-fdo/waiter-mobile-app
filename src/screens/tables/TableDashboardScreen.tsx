@@ -253,17 +253,17 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const renderTable = ({ item }: { item: RestaurantTable }) => {
     const cardBg =
       item.status === 'free'
-        ? '#DDDDDD'
+        ? '#ffffff'
         : item.status === 'partially_occupied'
-        ? '#f9e6a9'
-        : '#FF9D92';
+        ? '#ffe5bd'
+        : '#ffb4a7';
 
     const cornerBg =
       item.status === 'free'
-        ? '#AAAAAA'
+        ? '#767676'
         : item.status === 'partially_occupied'
-        ? '#bd611a'
-        : '#9F0C00';
+        ? 'rgb(198, 159, 50)'
+        : '#831400';
 
     return (
       <Pressable
@@ -306,9 +306,9 @@ export default function TableDashboardScreen({ navigation }: Props) {
         <Image
           source={getTableIcon(item.status)}
           style={{
-            width: 82 * scale,
-            height: 64 * scaleH,
-            marginTop: 30 * scaleH,
+            width: 85 * scale,
+            height: 85 * scaleH,
+            marginTop: 13 * scaleH,
           }}
           resizeMode="contain"
         />
@@ -436,7 +436,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
         style={[
           styles.bottomFilterBar,
           {
-            width: '72%',
+            width: '80%',
             alignSelf: 'center',
             height: 75 * scaleH,
             borderTopLeftRadius: 22 * scale,
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
   },
 
   topHeader: {
-    backgroundColor: '#F55A1F',
+    backgroundColor: '#F05822',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -779,14 +779,14 @@ const styles = StyleSheet.create({
   },
 
   logoutText: {
-    color: '#000000',
+    color: '#ffffff',
     fontFamily: 'Inter',
-    fontWeight: '500',
+    fontWeight: '700',
   },
 
   screenTitle: {
     textAlign: 'center',
-    color: '#F05A22',
+    color: '#F05822',
     fontFamily: 'Inter',
     fontWeight: '700',
   },
@@ -963,13 +963,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 18,
+    fontWeight: '300',
   },
 
   logoutYesButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontFamily: 'Inter',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 
   logoutCancelButton: {
@@ -980,9 +981,9 @@ const styles = StyleSheet.create({
   },
 
   logoutCancelButtonText: {
-    color: '#000000',
+    color: '#5a5a5a',
     fontSize: 16,
     fontFamily: 'Inter',
-    fontWeight: '500',
+    fontWeight: '700',
   },
 });

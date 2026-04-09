@@ -108,7 +108,7 @@ export default function OrderStatusScreen({ navigation, route}: Props) {
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#F05A22" />
+        <ActivityIndicator size="large" color="#F05822" />
         <Text style={styles.loadingText}>Loading order status...</Text>
       </View>
     );
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   completedDot: {
-    backgroundColor: '#F05A22',
+    backgroundColor: '#F05822',
   },
   pendingDot: {
     backgroundColor: '#E5E7EB',
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   completedLine: {
-    backgroundColor: '#F05A22',
+    backgroundColor: '#F05822',
   },
   pendingLine: {
     backgroundColor: '#E5E7EB',
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    backgroundColor: '#F05A22',
+    backgroundColor: '#F05822',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

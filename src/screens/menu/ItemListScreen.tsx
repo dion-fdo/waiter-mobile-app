@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   addButton: {
-    backgroundColor: '#F05A22',
+    backgroundColor: '#F05822',
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',

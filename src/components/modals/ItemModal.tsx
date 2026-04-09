@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   },
   selectedOption: {
     backgroundColor: '#FDBA74',
-    borderColor: '#F05A22',
+    borderColor: '#F05822',
   },
   optionText: {
     fontSize: 15,
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   },
   selectedAddOnChip: {
     backgroundColor: '#FFF7ED',
-    borderColor: '#F05A22',
+    borderColor: '#F05822',
   },
   addOnChipText: {
     color: '#111827',
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   addBtn: {
-    backgroundColor: '#F05A22',
+    backgroundColor: '#F05822',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

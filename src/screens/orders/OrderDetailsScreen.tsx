@@ -2,79 +2,163 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Pressable,
   FlatList,
   Alert,
   ActivityIndicator,
+  StyleSheet,
+  Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useAppContext } from '../../context/AppContext';
-import {
-  deleteOrder,
-  getOrderDetails,
-  OrderDetailsResponse,
-} from '../../services/api/orderApi';
-import { useFocusEffect } from '@react-navigation/native';
+import { deleteOrder, getOrderDetails } from '../../services/api/orderApi';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'OrderDetails'
+>;
 
-export default function OrderDetailsScreen({ navigation, route }: Props) {
+export default function OrderDetailsScreen({
+  navigation,
+  route,
+}: Props) {
   const routeOrderId = route.params?.orderId;
+
   const {
     placedOrder,
-    startEditPlacedOrder,
-    startEditBackendOrder,
-    ensureValidToken,
     selectedTable,
     selectedWaiter,
+    ensureValidToken,
+    startEditPlacedOrder,
+    startEditBackendOrder,
   } = useAppContext();
 
-  const isRouteDrivenOrder = routeOrderId != null;
-
-  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse['data'] | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<any>(null);
 
-  const loadOrderDetails = async () => {
-    const effectiveOrderId =
-      routeOrderId != null
-        ? routeOrderId
-        : placedOrder?.id
-        ? Number(placedOrder.id)
-        : null;
-
-    if (effectiveOrderId == null) {
-      setLoading(false);
-      return;
-    }
-
+  const fetchOrderDetails = useCallback(async () => {
     try {
       setLoading(true);
+
+      const orderId =
+        routeOrderId ??
+        (placedOrder?.id
+          ? Number(placedOrder.id)
+          : undefined);
+
+      if (!orderId) {
+        setLoading(false);
+        return;
+      }
+
       const token = await ensureValidToken();
       const response = await getOrderDetails(
-        effectiveOrderId,
+        orderId,
         token || undefined
       );
+
       setOrderDetails(response.data);
-    } catch (error: any) {
-      Alert.alert(
+    } catch (error) {
+      console.error(
         'Failed to load order details',
-        error?.message || 'Please try again'
+        error
       );
     } finally {
       setLoading(false);
     }
+  }, [routeOrderId, placedOrder?.id, ensureValidToken]);
+
+  useEffect(() => {
+    fetchOrderDetails();
+  }, [fetchOrderDetails]);
+
+  const formattedItems = useMemo(() => {
+    if (orderDetails?.itemsinfo) {
+      return orderDetails.itemsinfo;
+    }
+
+    return placedOrder?.items ?? [];
+  }, [orderDetails, placedOrder]);
+
+  const subtotal = useMemo(() => {
+    return formattedItems.reduce(
+      (sum: number, item: any) => {
+        const qty =
+          item.menuqty ??
+          item.qty ??
+          1;
+
+        const price = Number(
+          item.price ??
+            item.menuprice ??
+            0
+        );
+
+        return sum + qty * price;
+      },
+      0
+    );
+  }, [formattedItems]);
+
+  const serviceCharge = 0;
+  const total = subtotal + serviceCharge;
+
+  const handleDeleteOrder = () => {
+    const orderId =
+      routeOrderId ??
+      (placedOrder?.id
+        ? Number(placedOrder.id)
+        : undefined);
+
+    if (!orderId) return;
+
+    setDeleteSheetVisible(true);
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadOrderDetails();
-    }, [routeOrderId, placedOrder?.id])
-  );
+  const confirmDeleteOrder = async () => {
+    const orderId =
+      routeOrderId ??
+      (placedOrder?.id
+        ? Number(placedOrder.id)
+        : undefined);
+
+    if (!orderId) return;
+
+    try {
+      setDeleting(true);
+      setDeleteSheetVisible(false);
+
+      const token = await ensureValidToken();
+
+      await deleteOrder(
+        orderId,
+        token || undefined
+      );
+
+      Alert.alert(
+        'Success',
+        'Order deleted successfully'
+      );
+
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert(
+        'Delete Failed',
+        'Could not delete the order'
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleEditOrder = () => {
+    const isRouteDrivenOrder = routeOrderId != null;
+
     if (isRouteDrivenOrder) {
       if (!orderDetails) {
         Alert.alert('Order details not loaded yet');
@@ -95,445 +179,606 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
     navigation.navigate('EditPlacedOrder');
   };
 
-  const handleDeleteOrder = () => {
-    const effectiveOrderId =
-      routeOrderId != null
-        ? routeOrderId
-        : placedOrder?.id
-        ? Number(placedOrder.id)
-        : null;
+  const renderItem = ({
+    item,
+  }: {
+    item: any;
+  }) => {
+    const itemName =
+      item.ProductName ??
+      item.food_name ??
+      item.name ??
+      'Unknown Item';
 
-    if (effectiveOrderId == null) {
-      Alert.alert('No order found');
-      return;
-    }
+    const qty =
+      item.menuqty ??
+      item.qty ??
+      1;
 
-    Alert.alert(
-      'Delete Order',
-      'Are you sure you want to delete this order?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: confirmDeleteOrder,
-        },
-      ]
+    const price = Number(
+      item.price ??
+        item.menuprice ??
+        0
     );
-  };
-
-  const confirmDeleteOrder = async () => {
-    const effectiveOrderId =
-      routeOrderId != null
-        ? routeOrderId
-        : placedOrder?.id
-        ? Number(placedOrder.id)
-        : null;
-
-    if (effectiveOrderId == null) {
-      Alert.alert('No order found');
-      return;
-    }
-
-    try {
-      setDeleting(true);
-
-      const token = await ensureValidToken();
-
-      await deleteOrder(
-        effectiveOrderId,
-        token || undefined
-      );
-
-      Alert.alert('Success', 'Order deleted successfully', [
-        {
-          text: 'OK',
-          onPress: () => {
-            if (routeOrderId != null) {
-              navigation.goBack();
-            } else {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'TableDashboard' }],
-              });
-            }
-          },
-        },
-      ]);
-    } catch (error: any) {
-      Alert.alert(
-        'Delete Failed',
-        error?.message || 'Please try again'
-      );
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const formattedItems = useMemo(() => {
-    if (orderDetails?.itemsinfo && orderDetails.itemsinfo.length > 0) {
-      return orderDetails.itemsinfo;
-    }
-
-    if (!isRouteDrivenOrder) {
-      return placedOrder?.items ?? [];
-    }
-
-    return [];
-  }, [orderDetails?.itemsinfo, placedOrder?.items, isRouteDrivenOrder]);
-
-  const subtotal = useMemo(() => {
-    if (orderDetails?.itemsinfo && orderDetails.itemsinfo.length > 0) {
-      return orderDetails.itemsinfo.reduce((sum, item) => {
-        const qty = item.menuqty ?? 0;
-        const price = Number(item.menuprice ?? item.price ?? 0);
-        return sum + qty * price;
-      }, 0);
-    }
-
-    if (!isRouteDrivenOrder) {
-      return placedOrder?.subtotal ?? 0;
-    }
-
-    return 0;
-  }, [orderDetails?.itemsinfo, placedOrder?.subtotal, isRouteDrivenOrder]);
-
-  const serviceCharge = !isRouteDrivenOrder ? placedOrder?.serviceCharge ?? 0 : 0;
-  const total = !isRouteDrivenOrder ? placedOrder?.total ?? subtotal : subtotal;
-
-  const renderItem = ({ item }: { item: any }) => {
-    const isBackendItem = 'row_id' in item;
-
-    const itemName = isBackendItem
-      ? item.food_name || item.ProductName || 'Unnamed Item'
-      : item.name;
-
-    const qty = isBackendItem
-      ? item.menuqty ?? 0
-      : item.qty ?? 0;
-
-    const price = isBackendItem
-      ? Number(item.menuprice ?? item.price ?? 0)
-      : item.price ?? 0;
-
-    const variantName = isBackendItem
-      ? item.variantName || item.variant_name
-      : item.variantName;
-
-    const note = isBackendItem
-      ? item.itemnote
-      : item.note;
-
-    const addOnsText = isBackendItem
-      ? item.add_on_id && item.add_on_id.trim() !== ''
-        ? item.add_on_id
-        : ''
-      : item.selectedAddOns && item.selectedAddOns.length > 0
-      ? item.selectedAddOns.map((addOn: any) => addOn.addOnName).join(', ')
-      : '';
 
     const totalPrice = qty * price;
+
+    const variantName =
+      item.variantName ??
+      item.variant_name;
+
+    const note =
+      item.itemnote ??
+      item.note ??
+      '';
+
+    let addOnsText = '';
+
+    if (
+      item.selectedAddOns &&
+      item.selectedAddOns.length > 0
+    ) {
+      addOnsText = item.selectedAddOns
+        .map((addon: any) => addon.addOnName)
+        .join(', ');
+    }
 
     return (
       <View style={styles.itemCard}>
         <View style={styles.itemInfo}>
-          <Text style={styles.itemName}>{itemName}</Text>
+          <Text style={styles.itemName}>
+            {itemName}
+          </Text>
 
           <Text style={styles.itemMeta}>
             Qty: {qty} × LKR {price}
           </Text>
 
           {variantName ? (
-            <Text style={styles.itemSubMeta}>Variant: {variantName}</Text>
+            <Text style={styles.itemSubMeta}>
+              Variant: {variantName}
+            </Text>
           ) : null}
 
           {addOnsText ? (
-            <Text style={styles.itemSubMeta}>Add-ons: {addOnsText}</Text>
+            <Text style={styles.itemSubMeta}>
+              Add-ons: {addOnsText}
+            </Text>
           ) : null}
 
           {note ? (
-            <Text style={styles.itemSubMeta}>Note: {note}</Text>
+            <Text style={styles.itemSubMeta}>
+              Note: {note}
+            </Text>
           ) : null}
         </View>
 
-        <Text style={styles.itemTotal}>LKR {totalPrice}</Text>
+        <View style={styles.itemPriceWrap}>
+          <Text style={styles.itemTotal}>
+            LKR {totalPrice}
+          </Text>
+        </View>
       </View>
     );
   };
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#F05A22" />
-        <Text style={styles.loadingText}>Loading order details...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View
+          style={[
+            styles.container,
+            styles.centered,
+          ]}
+        >
+          <ActivityIndicator
+            size="large"
+            color="#F05822"
+          />
+          <Text style={styles.loadingText}>
+            Loading order details...
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Order Details</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.topCard}>
+          <Text style={styles.topTableText}>
+            {' '}
+            {selectedTable?.name ??
+              selectedTable?.number ??
+              '--'}
+          </Text>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.infoText}>
-          Order ID: {orderDetails?.orderinfo?.order_id ?? placedOrder?.id ?? '--'}
-        </Text>
-        <Text style={styles.infoText}>
-          Table: {selectedTable?.name ?? selectedTable?.number ?? '--'}
-        </Text>
-        <Text style={styles.infoText}>
-          Waiter:{' '}
-          {placedOrder?.waiter?.name
-            ?? selectedWaiter?.name
-            ?? selectedWaiter?.email
-            ?? 'Not available'}
-        </Text>
-        <Text style={styles.infoText}>
-          Items: {formattedItems.length}
-        </Text>
-      </View>
+          <Text style={styles.topTitle}>
+            Order Details
+          </Text>
 
-      <FlatList
-        data={formattedItems}
-        keyExtractor={(item: any, index) => {
-          if ('row_id' in item && item.row_id != null) {
-            return `backend-${item.row_id}`;
-          }
+          <View style={styles.topBottomRow}>
+            <View>
+              <Text style={styles.topMetaText}>
+                Order ID :{' '}
+                {orderDetails?.orderinfo
+                  ?.order_id ??
+                  placedOrder?.id ??
+                  '--'}
+              </Text>
 
-          if ('id' in item && item.id) {
-            return `local-${item.id}`;
-          }
+              <Text style={styles.topMetaText}>
+                Waiter :{' '}
+                {placedOrder?.waiter?.name ??
+                  selectedWaiter?.name ??
+                  selectedWaiter?.email ??
+                  'Not available'}
+              </Text>
+            </View>
 
-          return `fallback-${index}`;
-        }}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>No items in this order.</Text>
+            <Text style={styles.topMetaText}>
+              Items {formattedItems.length}
+            </Text>
           </View>
-        }
-      />
-
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Subtotal</Text>
-          <Text style={styles.summaryValue}>LKR {subtotal}</Text>
         </View>
 
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Service Charge</Text>
-          <Text style={styles.summaryValue}>LKR {serviceCharge}</Text>
-        </View>
+        <FlatList
+          data={formattedItems}
+          keyExtractor={(
+            item: any,
+            index
+          ) => {
+            if (
+              'row_id' in item &&
+              item.row_id != null
+            ) {
+              return `backend-${item.row_id}`;
+            }
 
-        <View style={[styles.summaryRow, styles.totalRow]}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>LKR {total}</Text>
-        </View>
-      </View>
+            if ('id' in item && item.id) {
+              return `local-${item.id}`;
+            }
 
-      <View style={styles.actionRow}>
-        <Pressable
-          style={[styles.actionButton, styles.secondaryButton]}
-          onPress={handleEditOrder}
-        >
-          <Text style={styles.secondaryButtonText}>Edit Order</Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.actionButton, styles.primaryButton]}
-          onPress={() =>
-            navigation.navigate('OrderStatus', {
-              orderId: routeOrderId ?? (placedOrder?.id ? Number(placedOrder.id) : undefined),
-            })
+            return `fallback-${index}`;
+          }}
+          renderItem={renderItem}
+          contentContainerStyle={
+            styles.listContent
           }
-        >
-          <Text style={styles.primaryButtonText}>Order Status</Text>
-        </Pressable>
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyTitle}>
+                No Items
+              </Text>
+              <Text style={styles.emptyText}>
+                No items in this order.
+              </Text>
+            </View>
+          }
+        />
+
+        <View style={styles.bottomSection}>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                Subtotal
+              </Text>
+              <Text style={styles.summaryValue}>
+                LKR {subtotal}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                Service Charge
+              </Text>
+              <Text style={styles.summaryValue}>
+                LKR {serviceCharge}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.summaryRow,
+                styles.totalRow,
+              ]}
+            >
+              <Text style={styles.totalLabel}>
+                Total
+              </Text>
+              <Text style={styles.totalValue}>
+                LKR {total}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[
+                styles.smallActionButton,
+                styles.secondaryButton,
+              ]}
+              onPress={handleEditOrder}
+            >
+              <Text
+                style={
+                  styles.secondaryButtonText
+                }
+              >
+                Edit order
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.smallActionButton,
+                styles.secondaryButton,
+              ]}
+              onPress={handleDeleteOrder}
+              disabled={deleting}
+            >
+              <Text
+                style={
+                  styles.secondaryButtonText
+                }
+              >
+                {deleting
+                  ? 'Deleting...'
+                  : 'Delete order'}
+              </Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            style={styles.statusButtonFull}
+            onPress={() =>
+              navigation.navigate(
+                'OrderStatus',
+                {
+                  orderId:
+                    routeOrderId ??
+                    (placedOrder?.id
+                      ? Number(
+                          placedOrder.id
+                        )
+                      : undefined),
+                }
+              )
+            }
+          >
+            <Text
+              style={styles.primaryButtonText}
+            >
+              View order status
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
-      <Pressable
-        style={styles.deleteOrderButton}
-        onPress={handleDeleteOrder}
-        disabled={deleting}
+      <Modal
+        visible={deleteSheetVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteSheetVisible(false)}
       >
-        <Text style={styles.deleteOrderButtonText}>
-          {deleting ? 'Deleting...' : 'Delete Order'}
-        </Text>
-      </Pressable>
-    </View>
+        <View style={styles.deleteSheetOverlay}>
+          <Pressable
+            style={styles.deleteSheetBackdrop}
+            onPress={() => setDeleteSheetVisible(false)}
+          />
+
+          <View style={styles.deleteSheetCard}>
+            <Text style={styles.deleteSheetTitle}>Are you sure?</Text>
+
+            <Pressable
+              style={styles.deleteYesButton}
+              onPress={confirmDeleteOrder}
+              disabled={deleting}
+            >
+              <Text style={styles.deleteYesButtonText}>
+                {deleting ? 'Deleting...' : 'Yes'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.deleteCancelButton}
+              onPress={() => setDeleteSheetVisible(false)}
+              disabled={deleting}
+            >
+              <Text style={styles.deleteCancelButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
+
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   loadingText: {
     marginTop: 12,
     fontSize: 15,
     color: '#6B7280',
   },
-  header: {
-    fontSize: 24,
+
+  topCard: {
+    backgroundColor: '#F05822',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+
+  topTableText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  infoCard: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-  },
-  infoText: {
-    fontSize: 15,
-    color: '#111827',
+    textAlign: 'center',
     marginBottom: 6,
   },
+
+  topTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+
+  topBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+
+  topMetaText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+
   listContent: {
     paddingBottom: 16,
   },
+
   emptyBox: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 14,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
+
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
+  },
+
   emptyText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#6B7280',
+    textAlign: 'center',
   },
+
   itemCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
+
   itemInfo: {
     flex: 1,
     paddingRight: 12,
   },
+
   itemName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 6,
   },
+
   itemMeta: {
     fontSize: 14,
     color: '#6B7280',
   },
+
   itemSubMeta: {
     fontSize: 13,
     color: '#6B7280',
     marginTop: 4,
   },
+
+  itemPriceWrap: {
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+  },
+
   itemTotal: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#111827',
+    color: '#F05822',
   },
+
+  bottomSection: {
+    marginTop: 4,
+  },
+
   summaryCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgb(255, 248, 245)',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 14,
+    borderColor: '#ffc1a9',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 8,
   },
+
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 5,
   },
+
   summaryLabel: {
     fontSize: 15,
-    color: '#6B7280',
+    color: '#565c67',
   },
+
   summaryValue: {
     fontSize: 15,
     fontWeight: '600',
     color: '#111827',
   },
+
   totalRow: {
     marginTop: 6,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#a5a5a7',
     marginBottom: 0,
   },
+
   totalLabel: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
   },
+
   totalValue: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#F05A22',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#F05822',
   },
+
   actionRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 12,
+    marginBottom: 10,
   },
-  actionButton: {
+
+  smallActionButton: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 15,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  primaryButton: {
-    backgroundColor: '#F05A22',
+
+  statusButtonFull: {
+    width: '100%',
+    backgroundColor: '#F05822',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+
   secondaryButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    backgroundColor: '#000000',
   },
+
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
   },
+
   secondaryButtonText: {
-    color: '#111827',
+    color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
   },
-  deleteOrderButton: {
-    marginTop: 12,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    paddingVertical: 14,
+
+  deleteSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'flex-end',
+  },
+
+  deleteSheetBackdrop: {
+    flex: 1,
+  },
+
+  deleteSheetCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+
+  deleteSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+
+  deleteYesButton: {
+    width: '100%',
+    backgroundColor: '#F05822',
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
-  deleteOrderButtonText: {
-    color: '#B91C1C',
+
+  deleteYesButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  deleteCancelButton: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  deleteCancelButtonText: {
+    color: '#4e4e4e',
     fontSize: 15,
     fontWeight: '700',
   },

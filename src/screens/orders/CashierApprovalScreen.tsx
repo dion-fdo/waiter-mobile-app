@@ -18,10 +18,10 @@ export default function CashierApprovalScreen({ navigation }: Props) {
           <Text style={styles.statusLabel}>Current Status</Text>
           <Text style={styles.statusValue}>Pending Approval</Text>
         </View>
-
+{/* 
         <Pressable style={styles.button} onPress={() => navigation.navigate('OrderDetails')}>
           <Text style={styles.buttonText}>Back to Order</Text>
-        </Pressable>
+        </Pressable> */}
       </View>
     </View>
   );
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   button: {
-    backgroundColor: '#F05A22',
+    backgroundColor: '#F05822',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

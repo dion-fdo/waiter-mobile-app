@@ -285,7 +285,7 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
                 style={{
                   width: 32 * scale,
                   height: 32 * scale,
-                  tintColor: '#F05A22',
+                  tintColor: '#F05822',
                 }}
                 resizeMode="contain"
               />
@@ -335,7 +335,7 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
                 style={{
                   width: 20 * scale,
                   height: 20 * scale,
-                  tintColor: '#F05A22',
+                  tintColor: '#F05822',
                 }}
                 resizeMode="contain"
               />
@@ -405,7 +405,7 @@ export default function CustomerSelectionScreen({ navigation }: Props) {
                   style={{
                     width: 32 * scale,
                     height: 32 * scale,
-                    tintColor: '#F05A22',
+                    tintColor: '#F05822',
                   }}
                   resizeMode="contain"
                 />
@@ -667,11 +667,11 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   dropdownItemTextSelected: {
-    color: '#F05A22',
+    color: '#F05822',
     fontWeight: '600',
   },
   dropdownArrow: {
-    color: '#F05A22',
+    color: '#F05822',
     marginLeft: 8,
   },
   bottomArrowWrap: {
@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   selectedCustomerCard: {
-    borderColor: '#F05A22',
+    borderColor: '#F05822',
     backgroundColor: '#FFF7ED',
   },
   customerName: {
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   membershipText: {
-    color: '#F05A22',
+    color: '#F05822',
     fontWeight: '600',
   },
   addButton: {
@@ -712,7 +712,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   continueButton: {
-    backgroundColor: '#F05A22',
+    backgroundColor: '#F05822',
     alignItems: 'center',
   },
   continueButtonText: {
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   modalAddButton: {
-    backgroundColor: '#F05A22',
+    backgroundColor: '#F05822',
     alignItems: 'center',
   },
   modalAddButtonText: {

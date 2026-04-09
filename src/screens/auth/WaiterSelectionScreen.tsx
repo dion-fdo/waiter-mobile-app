@@ -123,7 +123,7 @@ export default function WaiterSelectionScreen({ navigation }: Props) {
     return (
       <View style={styles.loadingContainer}>
         <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color="#F05A22" />
+        <ActivityIndicator size="large" color="#F05822" />
         <Text style={styles.loadingText}>Loading waiters...</Text>
       </View>
     );
@@ -208,7 +208,7 @@ export default function WaiterSelectionScreen({ navigation }: Props) {
                 style={{
                   width: 32 * scale,
                   height: 32 * scale,
-                  tintColor: '#F05A22',
+                  tintColor: '#F05822',
                 }}
                 resizeMode="contain"
               />
@@ -258,7 +258,7 @@ export default function WaiterSelectionScreen({ navigation }: Props) {
                   style={{
                     width: 24 * scale,
                     height: 24 * scale,
-                    tintColor: '#F05A22',
+                    tintColor: '#F05822',
                   }}
                   resizeMode="contain"
                 />
@@ -298,7 +298,7 @@ export default function WaiterSelectionScreen({ navigation }: Props) {
                 style={{
                   width: 32 * scale,
                   height: 32 * scale,
-                  tintColor: '#F05A22',
+                  tintColor: '#F05822',
                 }}
                 resizeMode="contain"
               />
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   },
 
   loginText: {
-    color: '#F05A22',
+    color: '#F05822',
     fontFamily: 'Inter',
     fontWeight: '500',
   },
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   },
 
   dropdownItemTextSelected: {
-    color: '#F05A22',
+    color: '#F05822',
     fontWeight: '600',
   },
 

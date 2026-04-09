@@ -13,6 +13,7 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useAppContext } from '../../context/AppContext';
 import { getActiveOrdersByTable } from '../../services/api/orderApi';
 import { useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TableOrders'>;
 
@@ -113,152 +114,289 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#F05A22" />
+        <ActivityIndicator size="large" color="#F05822" />
         <Text style={styles.loadingText}>Loading table orders...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>{tableName}</Text>
-      <Text style={styles.subHeader}>Current Orders</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.topCard}>
+          <Text style={styles.header}>{tableName}</Text>
+          <Text style={styles.subHeader}>Current Orders</Text>
 
-      <FlatList
-        data={orders}
-        keyExtractor={(item) => String(item.order_id)}
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.orderCard}
-            onPress={() => handleOpenOrder(item.order_id)}
-          >
-            <View>
-              <Text style={styles.orderId}>Order #{item.order_id}</Text>
-              <Text style={styles.orderStatus}>
-                {getStatusLabel(item.order_status)}
+          <View style={styles.tableMetaRow}>
+            <View style={styles.metaBadge}>
+              <Text style={styles.metaBadgeText}>
+                {orders.length} Active
               </Text>
             </View>
 
-            <Text style={styles.viewText}>View</Text>
-          </Pressable>
-        )}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>No active orders for this table.</Text>
+            <View
+              style={[
+                styles.metaBadge,
+                tableStatus === 'full'
+                  ? styles.fullBadge
+                  : styles.partialBadge,
+              ]}
+            >
+              <Text style={styles.metaBadgeText}>
+                {tableStatus === 'full'
+                  ? 'Full'
+                  : 'Partially Occupied'}
+              </Text>
+            </View>
           </View>
-        }
-      />
+        </View>
 
-      {tableStatus === 'partially_occupied' ? (
-        <Pressable style={styles.addButton} onPress={handleAddNewOrder}>
-          <Text style={styles.addButtonText}>Add New Order</Text>
-        </Pressable>
-      ) : null}
+        <FlatList
+          data={orders}
+          keyExtractor={(item) => String(item.order_id)}
+          renderItem={({ item }) => (
+            <Pressable
+              style={styles.orderCard}
+              onPress={() => handleOpenOrder(item.order_id)}
+            >
+              <View style={styles.orderLeft}>
+                <Text style={styles.orderId}>
+                  Order #{item.order_id}
+                </Text>
 
-      <Pressable
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
-        <Text style={styles.backButtonText}>Back</Text>
-      </Pressable>
-    </View>
+                <View style={styles.statusPill}>
+                  <Text style={styles.statusPillText}>
+                    {getStatusLabel(item.order_status)}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.viewText}>View</Text>
+            </Pressable>
+          )}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyTitle}>
+                No Active Orders
+              </Text>
+              <Text style={styles.emptyText}>
+                This table currently has no active orders.
+              </Text>
+            </View>
+          }
+        />
+
+        <View style={styles.bottomActions}>
+          {tableStatus === 'partially_occupied' && (
+            <Pressable
+              style={styles.addButton}
+              onPress={handleAddNewOrder}
+            >
+              <Text style={styles.addButtonText}>
+                Add New Order
+              </Text>
+            </Pressable>
+          )}
+
+          <Pressable
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Back</Text>
+          </Pressable>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingTop: 16,
+    paddingTop: 0,
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
+
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   loadingText: {
     marginTop: 12,
     color: '#6B7280',
     fontSize: 15,
   },
-  header: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 6,
+
+  topCard: {
+    backgroundColor: '#F05822',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 18,
   },
+
+  header: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+
   subHeader: {
     fontSize: 15,
-    color: '#6B7280',
-    marginBottom: 16,
+    color: '#ffffff',
+    marginBottom: 14,
   },
+
+  tableMetaRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  metaBadge: {
+    backgroundColor: '#6a3000',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+
+  partialBadge: {
+    backgroundColor: '#000000',
+  },
+
+  fullBadge: {
+    backgroundColor: '#000000',
+  },
+
+  metaBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
   listContent: {
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
+
   orderCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgb(255, 255, 255)',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.01,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
+
+  orderLeft: {
+    flex: 1,
+  },
+
   orderId: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  orderStatus: {
-    fontSize: 14,
-    color: '#6B7280',
+
+  statusPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
+
+  statusPillText: {
+    color: '#F05822',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
   viewText: {
-    color: '#F05A22',
+    color: '#F05822',
     fontSize: 15,
     fontWeight: '700',
   },
+
   emptyBox: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#000000',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 14,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     alignItems: 'center',
+    marginTop: 20,
   },
+
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
+  },
+
   emptyText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#6B7280',
+    textAlign: 'center',
   },
-  addButton: {
-    backgroundColor: '#F05A22',
-    paddingVertical: 14,
-    borderRadius: 12,
+
+  bottomActions: {
+    paddingTop: 12,
+    paddingBottom: 16,
+    marginHorizontal: -16,
+    marginBottom: -20,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 60,
+    borderTopRightRadius: 60,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 12,
   },
+
+  addButton: {
+    backgroundColor: '#F05822',
+    paddingVertical: 15,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+    width: '100%',
+  },
+
+  backButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+
   addButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },
-  backButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
+
   backButtonText: {
-    color: '#111827',
+    color: '#5a5a5a',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '400',
   },
 });
