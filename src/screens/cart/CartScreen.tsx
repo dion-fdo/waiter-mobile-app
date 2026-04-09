@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
   FlatList,
+  Modal,
+  Animated,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { CartItem } from '../../types/cart';
@@ -26,284 +29,568 @@ export default function CartScreen({ navigation }: Props) {
     placeOrder,
   } = useAppContext();
 
-  const handlePlaceOrder = () => {
+  const [confirmSheetVisible, setConfirmSheetVisible] = useState(false);
+  const [placingOrder, setPlacingOrder] = useState(false);
+
+  const confirmSheetTranslateY = useRef(new Animated.Value(320)).current;
+
+  useEffect(() => {
+    if (confirmSheetVisible) {
+      confirmSheetTranslateY.setValue(320);
+      Animated.timing(confirmSheetTranslateY, {
+        toValue: 0,
+        duration: 260,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [confirmSheetVisible, confirmSheetTranslateY]);
+
+  const openConfirmSheet = () => {
     if (cartItems.length === 0) {
-      Alert.alert('Cart is empty');
       return;
     }
+    setConfirmSheetVisible(true);
+  };
 
-    Alert.alert(
-      'Confirm Order',
-      `Place this order for Table ${selectedTable?.number ?? '-'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes',
-          onPress: async () => {
-            const success = await placeOrder();
+  const closeConfirmSheet = () => {
+    Animated.timing(confirmSheetTranslateY, {
+      toValue: 320,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setConfirmSheetVisible(false);
+    });
+  };
 
-            if (success) {
-              navigation.navigate('OrderDetails', {
-                orderId: undefined,
-              });
-            } else {
-              Alert.alert('Order placement failed');
-            }
-          },
-        },
-      ]
-    );
+  const handlePlaceOrder = async () => {
+    try {
+      setPlacingOrder(true);
+      closeConfirmSheet();
+
+      const success = await placeOrder();
+
+      if (success) {
+        navigation.navigate('OrderDetails', {
+          orderId: undefined,
+        });
+      } else {
+        Alert.alert('Order placement failed');
+      }
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   const renderItem = ({ item }: { item: CartItem }) => (
     <View style={styles.itemCard}>
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemMeta}>
-          Qty: {item.qty} × LKR {item.price}
-        </Text>
-        {item.variantName ? (
-          <Text style={styles.itemSubText}>Variant: {item.variantName}</Text>
-        ) : null}
+      <View style={styles.itemTopRow}>
+        <View style={styles.itemInfo}>
+          <Text style={styles.itemName}>{item.name}</Text>
 
-        {item.selectedAddOns && item.selectedAddOns.length > 0 ? (
-          <Text style={styles.itemSubText}>
-            Add-ons: {item.selectedAddOns.map((addOn) => addOn.addOnName).join(', ')}
+          <Text style={styles.itemMeta}>
+            LKR {item.price}
           </Text>
-        ) : null}
 
-        {item.note ? (
-          <Text style={styles.itemSubText}>Note: {item.note}</Text>
-        ) : null}
-      </View>
+          {item.variantName ? (
+            <Text style={styles.itemSubText}>
+              Variant: {item.variantName}
+            </Text>
+          ) : null}
 
-      <View style={styles.itemRight}>
-        <Text style={styles.itemTotal}>LKR {item.qty * item.price}</Text>
+          {item.selectedAddOns && item.selectedAddOns.length > 0 ? (
+            <Text style={styles.itemSubText}>
+              Add-ons: {item.selectedAddOns
+                .map((addOn) => addOn.addOnName)
+                .join(', ')}
+            </Text>
+          ) : null}
 
-        <View style={styles.qtyRow}>
-          <Pressable style={styles.qtyButton} onPress={() => updateCartItemQty(item.id, 'dec')}>
-            <Text style={styles.qtyButtonText}>-</Text>
-          </Pressable>
-
-          <Text style={styles.qtyText}>{item.qty}</Text>
-
-          <Pressable style={styles.qtyButton} onPress={() => updateCartItemQty(item.id, 'inc')}>
-            <Text style={styles.qtyButtonText}>+</Text>
-          </Pressable>
+          {item.note ? (
+            <Text style={styles.itemSubText}>
+              Note: {item.note}
+            </Text>
+          ) : null}
         </View>
 
-        <Pressable style={styles.removeButton} onPress={() => removeCartItem(item.id)}>
-          <Text style={styles.removeButtonText}>Remove</Text>
+        <Pressable
+          style={styles.removeButton}
+          onPress={() => removeCartItem(item.id)}
+        >
+          <Text style={styles.removeButtonText}>Delete</Text>
         </Pressable>
+      </View>
+
+      <View style={styles.qtyRow}>
+        <Pressable
+          style={styles.qtyButton}
+          onPress={() => updateCartItemQty(item.id, 'dec')}
+        >
+          <Text style={styles.qtyButtonText}>-</Text>
+        </Pressable>
+
+        <Text style={styles.qtyText}>{item.qty}</Text>
+
+        <Pressable
+          style={styles.qtyButton}
+          onPress={() => updateCartItemQty(item.id, 'inc')}
+        >
+          <Text style={styles.qtyButtonText}>+</Text>
+        </Pressable>
+
+        <Text style={styles.itemTotal}>LKR {item.qty * item.price}</Text>
       </View>
     </View>
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Cart</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.topCard}>
+          <Text style={styles.topTableText}>
+            {selectedTable ? `Table ${selectedTable.number}` : '--'}
+          </Text>
 
-      {selectedTable ? <Text style={styles.tableText}>Table {selectedTable.number}</Text> : null}
+          <Text style={styles.topTitle}>Cart</Text>
 
-      <FlatList
-        data={cartItems}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>Your cart is empty.</Text>
+          <View style={styles.topBottomRow}>
+            <View>
+              <Text style={styles.topMetaText}>
+                Items : {cartItems.length}
+              </Text>
+            </View>
+
+            <Text style={styles.topMetaText}>
+              Ready to Place
+            </Text>
           </View>
-        }
-      />
-
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Subtotal</Text>
-          <Text style={styles.summaryValue}>LKR {subtotal}</Text>
         </View>
 
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Service Charge</Text>
-          <Text style={styles.summaryValue}>LKR {serviceCharge}</Text>
+        <FlatList
+          data={cartItems}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyTitle}>Your cart is empty</Text>
+              <Text style={styles.emptyText}>
+                Add items from the menu to continue.
+              </Text>
+            </View>
+          }
+        />
+
+        <View style={styles.bottomSection}>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryValue}>LKR {subtotal}</Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Service Charge</Text>
+              <Text style={styles.summaryValue}>LKR {serviceCharge}</Text>
+            </View>
+
+            <View style={[styles.summaryRow, styles.totalRow]}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>LKR {total}</Text>
+            </View>
+          </View>
+
+          <View style={styles.buttonRow}>
+            <Pressable
+              style={styles.secondaryButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.secondaryButtonText}>Back</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.button}
+              onPress={openConfirmSheet}
+              disabled={placingOrder}
+            >
+              <Text style={styles.buttonText}>
+                {placingOrder ? 'Placing...' : 'Place Order'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
-        <View style={[styles.summaryRow, styles.totalRow]}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>LKR {total}</Text>
-        </View>
+        <Modal
+          visible={confirmSheetVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeConfirmSheet}
+        >
+          <View style={styles.confirmSheetOverlay}>
+            <Pressable
+              style={styles.confirmSheetBackdrop}
+              onPress={closeConfirmSheet}
+            />
+
+            <Animated.View
+              style={[
+                styles.confirmSheetCard,
+                { transform: [{ translateY: confirmSheetTranslateY }] },
+              ]}
+            >
+              <Text style={styles.confirmSheetTitle}>Are you sure?</Text>
+
+              <Text style={styles.confirmSheetSubText}>
+                Place this order for Table {selectedTable?.number ?? '-'}?
+              </Text>
+
+              <Pressable
+                style={styles.confirmYesButton}
+                onPress={handlePlaceOrder}
+                disabled={placingOrder}
+              >
+                <Text style={styles.confirmYesButtonText}>
+                  {placingOrder ? 'Placing...' : 'Confirm Order'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.confirmCancelButton}
+                onPress={closeConfirmSheet}
+                disabled={placingOrder}
+              >
+                <Text style={styles.confirmCancelButtonText}>Cancel</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+        </Modal>
       </View>
-
-      <Pressable style={styles.button} onPress={handlePlaceOrder}>
-        <Text style={styles.buttonText}>Place Order</Text>
-      </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingTop: 16,
     paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
-  header: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+
+  topCard: {
+    backgroundColor: '#F05822',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+
+  topTableText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
+    textAlign: 'center',
     marginBottom: 6,
   },
-  tableText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 12,
+
+  topTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 16,
   },
+
+  topBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+
+  topMetaText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+
   listContent: {
     paddingBottom: 16,
   },
+
   emptyBox: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 14,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
+
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
+  },
+
   emptyText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#6B7280',
+    textAlign: 'center',
   },
+
   itemCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+
+  itemTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    marginBottom: 8,
   },
+
   itemInfo: {
     flex: 1,
     paddingRight: 12,
   },
-  itemRight: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
+
   itemName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 6,
   },
+
   itemMeta: {
     fontSize: 14,
     color: '#6B7280',
   },
-  itemSubMeta: {
+
+  itemSubText: {
     fontSize: 13,
     color: '#6B7280',
     marginTop: 4,
   },
-  itemTotal: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
+
+  removeButton: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignSelf: 'flex-start',
   },
+
+  removeButtonText: {
+    color: '#B91C1C',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
   qtyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
+
   qtyButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#fbfaf9',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   qtyButtonText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+  },
+
+  qtyText: {
     fontSize: 18,
     fontWeight: '700',
     color: '#111827',
-  },
-  qtyText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    minWidth: 18,
+    marginHorizontal: 16,
+    minWidth: 24,
     textAlign: 'center',
   },
-  removeButton: {
-    paddingVertical: 4,
-  },
-  removeButtonText: {
-    fontSize: 13,
+
+  itemTotal: {
+    marginLeft: 'auto',
+    fontSize: 14,
     fontWeight: '700',
-    color: '#EF4444',
+    color: '#F05822',
   },
+
+  bottomSection: {
+    marginTop: 4,
+  },
+
   summaryCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgb(255, 248, 245)',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 14,
+    borderColor: '#ffc1a9',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 10,
   },
+
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 5,
   },
+
   summaryLabel: {
     fontSize: 15,
-    color: '#6B7280',
+    color: '#565c67',
   },
+
   summaryValue: {
     fontSize: 15,
     fontWeight: '600',
     color: '#111827',
   },
+
   totalRow: {
     marginTop: 6,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#a5a5a7',
     marginBottom: 0,
   },
+
   totalLabel: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
   },
+
   totalValue: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#F05822',
   },
-  button: {
-    backgroundColor: '#F05822',
-    paddingVertical: 14,
+
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#7c7c7c',
+    paddingVertical: 15,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+
+  secondaryButtonText: {
+    color: '#4b4b4b',
+    fontSize: 15,
     fontWeight: '700',
   },
-  itemSubText: {
-    fontSize: 13,
+
+  button: {
+    flex: 1,
+    backgroundColor: '#F05822',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  confirmSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'flex-end',
+  },
+
+  confirmSheetBackdrop: {
+    flex: 1,
+  },
+
+  confirmSheetCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+
+  confirmSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+
+  confirmSheetSubText: {
+    fontSize: 14,
     color: '#6B7280',
-    marginTop: 4,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+
+  confirmYesButton: {
+    width: '100%',
+    backgroundColor: '#F05822',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+
+  confirmYesButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  confirmCancelButton: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  confirmCancelButtonText: {
+    color: '#4d4d4d',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

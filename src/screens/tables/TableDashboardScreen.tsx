@@ -251,7 +251,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const renderTable = ({ item }: { item: RestaurantTable }) => {
     const cardBg =
       item.status === 'free'
-        ? '#ffffff'
+        ? '#f0f0f0'
         : item.status === 'partially_occupied'
         ? '#ffe5bd'
         : '#ffb4a7';
@@ -260,7 +260,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
       item.status === 'free'
         ? '#767676'
         : item.status === 'partially_occupied'
-        ? 'rgb(198, 159, 50)'
+        ? 'rgb(235, 185, 47)'
         : '#831400';
 
     return (
@@ -721,7 +721,7 @@ function BottomTab({ label, active, onPress, scale }: BottomTabProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EDEDED',
+    backgroundColor: '#ffffff',
   },
 
   loadingWrap: {
