@@ -38,10 +38,11 @@ export default function ItemModal({ visible, onClose, item }: Props) {
 
   const sheetTranslateY = useRef(new Animated.Value(320)).current;
 
-  const defaultVariantName = item?.variants?.[0]?.variantName;
-  const [selectedVariantName, setSelectedVariantName] = useState<string>(
-    defaultVariantName ?? ''
+  const defaultVariantId = item?.variants?.[0]?.variantId;
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(
+    defaultVariantId ?? ''
   );
+  
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
   const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
@@ -49,7 +50,7 @@ export default function ItemModal({ visible, onClose, item }: Props) {
   useEffect(() => {
     if (!item) return;
 
-    setSelectedVariantName(item.variants?.[0]?.variantName ?? '');
+    setSelectedVariantId(item.variants?.[0]?.variantId ?? '');
     setQty(1);
     setNote('');
     setSelectedAddOnIds([]);
@@ -78,9 +79,9 @@ export default function ItemModal({ visible, onClose, item }: Props) {
 
   const selectedVariant = useMemo(() => {
     return item?.variants?.find(
-      (variant) => variant.variantName === selectedVariantName
+      (variant) => variant.variantId === selectedVariantId
     );
-  }, [item, selectedVariantName]);
+  }, [item, selectedVariantId]);
 
   const selectedAddOns: SelectedAddOn[] = useMemo(() => {
     if (!item?.addOns?.length) return [];
@@ -152,13 +153,13 @@ export default function ItemModal({ visible, onClose, item }: Props) {
                 <Text style={styles.section}>Variant</Text>
                 <View style={styles.rowWrap}>
                   {item.variants.map((variant) => {
-                    const selected = selectedVariantName === variant.variantName;
+                    const selected = selectedVariantId === variant.variantId;
 
                     return (
                       <Pressable
                         key={variant.variantId}
                         style={[styles.option, selected && styles.selectedOption]}
-                        onPress={() => setSelectedVariantName(variant.variantName)}
+                        onPress={() => setSelectedVariantId(variant.variantId)}
                       >
                         <Text style={styles.optionText}>{variant.variantName}</Text>
                         <Text style={styles.optionSubText}>

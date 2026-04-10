@@ -49,6 +49,36 @@ export default function ItemListScreen({ navigation, route }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  
+  const filterValidItems = (data: MenuItem[]) => {
+    return data.filter((item: any) => {
+      const rawQty =
+        item.qty ??
+        item.quantity ??
+        item.stock_qty ??
+        item.available_qty ??
+        item.stock;
+
+      const directPrice =
+        item.price ??
+        item.menuprice ??
+        item.basePrice;
+
+      const variantPrices = Array.isArray(item.variants)
+        ? item.variants
+            .map((variant: any) => Number(variant?.price ?? 0))
+            .filter((price: number) => price > 0)
+        : [];
+
+      const hasValidPrice =
+        Number(directPrice ?? 0) > 0 || variantPrices.length > 0;
+
+      const hasExplicitZeroQty =
+        rawQty != null && Number(rawQty) <= 0;
+
+      return hasValidPrice && !hasExplicitZeroQty;
+    });
+  };
 
   const loadItems = async (keyword?: string) => {
     try {
@@ -56,18 +86,18 @@ export default function ItemListScreen({ navigation, route }: Props) {
 
       if (keyword && keyword.trim().length > 0) {
         const data = await searchFoods(keyword.trim(), token || undefined);
-        setItems(data);
+        setItems(filterValidItems(data));
         return;
       }
 
       if (categoryId === 'all') {
         const data = await searchFoods('', token || undefined);
-        setItems(data);
+        setItems(filterValidItems(data));
         return;
       }
 
       const data = await getFoodsByCategory(categoryId, token || undefined);
-      setItems(data);
+      setItems(filterValidItems(data));
     } catch (error: any) {
       Alert.alert(
         'Failed to load menu items',
@@ -75,6 +105,7 @@ export default function ItemListScreen({ navigation, route }: Props) {
       );
     }
   };
+  
 
   useEffect(() => {
     const init = async () => {
@@ -97,7 +128,34 @@ export default function ItemListScreen({ navigation, route }: Props) {
     return () => clearTimeout(timeout);
   }, [searchText]);
 
-  const openModal = (item: MenuItem) => {
+  const openModal = (item: any) => {
+    const rawQty =
+      item.qty ??
+      item.quantity ??
+      item.stock_qty ??
+      item.available_qty ??
+      item.stock;
+
+    const directPrice =
+      item.price ??
+      item.menuprice;
+
+    const variantPrices = Array.isArray(item.variants)
+      ? item.variants
+          .map((variant: any) => Number(variant?.price ?? 0))
+          .filter((price: number) => price > 0)
+      : [];
+
+    const hasValidPrice =
+      Number(directPrice ?? 0) > 0 || variantPrices.length > 0;
+
+    const hasExplicitZeroQty =
+      rawQty != null && Number(rawQty) <= 0;
+
+    if (!hasValidPrice || hasExplicitZeroQty) {
+      return;
+    }
+
     setSelectedItem(item);
     setModalVisible(true);
   };
