@@ -40,47 +40,26 @@ function buildSteps(orderStatus: number): StatusStep[] {
   const currentStep = getCurrentStep(orderStatus);
 
   return [
-    {
-      id: '1',
-      label: 'Order Placed',
-      completed: currentStep >= 1,
-      current: currentStep === 1,
-    },
-    {
-      id: '2',
-      label: 'Preparing',
-      completed: currentStep >= 2,
-      current: currentStep === 2,
-    },
-    {
-      id: '3',
-      label: 'Ready',
-      completed: currentStep >= 3,
-      current: currentStep === 3,
-    },
-    {
-      id: '4',
-      label: 'Served',
-      completed: currentStep >= 4,
-      current: currentStep === 4,
-    },
+    { id: '1', label: 'Order Placed', completed: currentStep >= 1, current: currentStep === 1 },
+    { id: '2', label: 'Preparing', completed: currentStep >= 2, current: currentStep === 2 },
+    { id: '3', label: 'Ready', completed: currentStep >= 3, current: currentStep === 3 },
+    { id: '4', label: 'Served', completed: currentStep >= 4, current: currentStep === 4 },
   ];
 }
 
 function getStatusText(orderStatus: number): string {
   switch (orderStatus) {
     case 1:
-      return 'Pending';
+    case 6:
+      return 'Order Placed';
     case 2:
-      return 'Processing';
+      return 'Preparing';
     case 3:
       return 'Ready';
     case 4:
       return 'Served';
     case 5:
       return 'Cancelled';
-    case 6:
-      return 'Waiter Order';
     default:
       return 'Unknown';
   }
@@ -105,10 +84,13 @@ function getStatusGif(orderStatus: number) {
 
 export default function OrderStatusScreen({ navigation, route }: Props) {
   const routeOrderId = route.params?.orderId;
-  const { placedOrder, ensureValidToken, selectedTable, selectedWaiter } = useAppContext();
+  const routeTableName = route.params?.tableName;
+
+  const { placedOrder, ensureValidToken, selectedWaiter } = useAppContext();
 
   const [loading, setLoading] = useState(true);
-  const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse['data'] | null>(null);
+  const [orderDetails, setOrderDetails] =
+    useState<OrderDetailsResponse['data'] | null>(null);
 
   useEffect(() => {
     const loadOrderDetails = async () => {
@@ -126,11 +108,14 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
 
       try {
         setLoading(true);
+
         const token = await ensureValidToken();
+
         const response = await getOrderDetails(
           effectiveOrderId,
           token || undefined
         );
+
         setOrderDetails(response.data);
       } catch (error: any) {
         Alert.alert(
@@ -151,21 +136,35 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     return buildSteps(orderStatus);
   }, [orderStatus]);
 
+  const orderInfo = orderDetails?.orderinfo as any;
+
+  const orderTableNo =
+    orderInfo?.table_no ??
+    orderInfo?.tableid ??
+    orderInfo?.table_id ??
+    orderInfo?.tableId ??
+    orderInfo?.table_number ??
+    null;
+
   const tableDisplay =
-    (orderDetails as any)?.tablename ??
-    (orderDetails as any)?.table_name ??
-    (orderDetails as any)?.table?.name ??
-    (orderDetails as any)?.table_no
-      ? `Table ${(orderDetails as any)?.table_no}`
-      : selectedTable?.name ??
-        (selectedTable?.number ? `Table ${selectedTable.number}` : '--');
+    routeTableName ??
+    (orderTableNo != null ? `Table ${orderTableNo}` : '--');
+
+  const orderWaiterId =
+    orderInfo?.waiter_id ??
+    orderInfo?.waiterid ??
+    orderInfo?.waiterId ??
+    null;
 
   const waiterDisplay =
-    placedOrder?.waiter?.name ??
-    selectedWaiter?.name ??
-    selectedWaiter?.email ??
-    'Not selected';
+    orderWaiterId != null
+      ? `Waiter ${orderWaiterId}`
+      : placedOrder?.waiter?.name ??
+        selectedWaiter?.name ??
+        selectedWaiter?.email ??
+        'Not selected';
 
+  const statusText = getStatusText(orderStatus);
   const statusGif = getStatusGif(orderStatus);
 
   if (loading) {
@@ -184,6 +183,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
       <View style={styles.container}>
         <View style={styles.topCard}>
           <Text style={styles.topTableText}>{tableDisplay}</Text>
+
           <Text style={styles.topTitle}>Order Status</Text>
 
           <View style={styles.topBottomRow}>
@@ -191,14 +191,13 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
               <Text style={styles.topMetaText}>
                 Order ID : {orderDetails?.orderinfo?.order_id ?? placedOrder?.id ?? '--'}
               </Text>
+
               <Text style={styles.topMetaText}>
                 Waiter : {waiterDisplay}
               </Text>
             </View>
 
-            <Text style={styles.topMetaText}>
-              {getStatusText(orderStatus)}
-            </Text>
+            <Text style={styles.topMetaText}>{statusText}</Text>
           </View>
         </View>
 
@@ -217,14 +216,15 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
                         step.current && styles.currentDot,
                       ]}
                     />
-                    {!isLast && (
+
+                    {!isLast ? (
                       <View
                         style={[
                           styles.line,
                           step.completed ? styles.completedLine : styles.pendingLine,
                         ]}
                       />
-                    )}
+                    ) : null}
                   </View>
 
                   <View style={styles.timelineContent}>
@@ -244,7 +244,11 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
           </View>
 
           <View style={styles.gifWrap}>
-            <Image source={statusGif} style={styles.statusGif} resizeMode="contain" />
+            <Image
+              source={statusGif}
+              style={styles.statusGif}
+              resizeMode="contain"
+            />
           </View>
         </View>
 
@@ -259,7 +263,12 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
           <Pressable
             style={styles.button}
             onPress={() =>
-              navigation.navigate('OrderDetails', { orderId: routeOrderId })
+              navigation.navigate('OrderDetails', {
+                orderId:
+                  routeOrderId ??
+                  (placedOrder?.id ? Number(placedOrder.id) : undefined),
+                tableName: tableDisplay,
+              })
             }
           >
             <Text style={styles.buttonText}>View Order</Text>
@@ -304,7 +313,7 @@ const styles = StyleSheet.create({
 
   topTableText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 6,
@@ -413,7 +422,7 @@ const styles = StyleSheet.create({
   gifWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 20,
+    paddingBottom: 12,
   },
 
   statusGif: {

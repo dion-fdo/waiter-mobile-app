@@ -8,11 +8,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Customer } from '../types/customer';
 import { createOrder, updateOrder, OrderDetailsResponse} from '../services/api/orderApi';
 
+import { ENV } from '../config/env';
 
 type ItemSize = string;
 
-const M2M_CLIENT_ID = '019d4274-4a0a-71b5-a30b-15cbe9d9c522';
-const M2M_CLIENT_SECRET = '1jvKvb6WLlaSHTy4odfHTtsjA5tIlpjWKukKaBBP';
+// const M2M_CLIENT_ID = '019d4274-4a0a-71b5-a30b-15cbe9d9c522';
+// const M2M_CLIENT_SECRET = '1jvKvb6WLlaSHTy4odfHTtsjA5tIlpjWKukKaBBP';
+
+const M2M_CLIENT_ID = ENV.M2M_CLIENT_ID;
+const M2M_CLIENT_SECRET = ENV.M2M_CLIENT_SECRET;
 
 const ORDER_DRAFT_STORAGE_KEY = 'waiter_app_table_order_draft';
 
@@ -522,7 +526,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('No placed order found');
       }
 
-      if (!selectedTable) {
+      const effectiveTable = selectedTable ?? placedOrder.table;
+
+      if (!effectiveTable) {
         throw new Error('Table not selected');
       }
 
@@ -556,7 +562,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         customer_id: effectiveCustomerId,
         order_date: today,
         waiter_id: Number(selectedWaiter.waiterId),
-        tableid: Number(selectedTable.id),
+        tableid: Number(effectiveTable.id),
         room_id: null,
         reservation_id: null,
         customernote: '',

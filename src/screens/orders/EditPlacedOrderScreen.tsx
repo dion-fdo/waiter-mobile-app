@@ -15,7 +15,7 @@ import { useAppContext } from '../../context/AppContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditPlacedOrder'>;
 
-export default function EditPlacedOrderScreen({ navigation }: Props) {
+export default function EditPlacedOrderScreen({ navigation, route }: Props) {
   const {
     placedOrder,
     editOrderItems,
@@ -47,6 +47,7 @@ export default function EditPlacedOrderScreen({ navigation }: Props) {
             Alert.alert('Success', 'Order updated successfully');
             navigation.replace('OrderDetails', {
               orderId: placedOrder?.id ? Number(placedOrder.id) : undefined,
+              tableName: tableDisplay,
             });
           } else {
             Alert.alert('Update Failed', 'Could not update the order');
@@ -110,13 +111,20 @@ export default function EditPlacedOrderScreen({ navigation }: Props) {
     </View>
   );
 
+  const routeTableName = route.params?.tableName;
+
+  const tableDisplay =
+    routeTableName ??
+    placedOrder?.table?.name ??
+    (placedOrder?.table?.number ? `Table ${placedOrder.table.number}` : '--');
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.topCard}>
           <View style={styles.topTableRow}>
             <Text style={styles.topTableText}>
-              {placedOrder?.table ? `Table ${placedOrder.table.number}` : '--'}
+              {tableDisplay}
             </Text>
 
             <Pressable

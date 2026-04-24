@@ -94,7 +94,10 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
   );
 
   const handleOpenOrder = (orderId: number) => {
-    navigation.push('OrderDetails', { orderId });
+    navigation.push('OrderDetails', {
+      orderId,
+      tableName,
+    });
   };
 
   const handleAddNewOrder = async () => {

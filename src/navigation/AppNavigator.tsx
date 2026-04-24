@@ -26,9 +26,9 @@ export type RootStackParamList = {
   Category: undefined;
   ItemList: { categoryId: string; categoryName: string };
   Cart: undefined;
-  OrderDetails: { orderId?: number };
-  OrderStatus: {orderId?: number};
-  EditPlacedOrder: undefined;
+  OrderDetails: { orderId?: number; tableName?: string };
+  OrderStatus: { orderId?: number; tableName?: string };
+  EditPlacedOrder: { tableName?: string; tableId?: number };
   CashierApproval: undefined;
   TableOrders: {
     tableId: number;
