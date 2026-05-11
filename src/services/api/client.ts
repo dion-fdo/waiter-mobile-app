@@ -1,4 +1,7 @@
-const BASE_URL = 'https://cuisine.kernelencode.com';
+import { ENV } from "../../config/env";
+
+const BASE_URL = ENV.BASE_URL;
+//console.log('BASE_URL =', BASE_URL);
 
 type RequestOptions = RequestInit & {
   headers?: Record<string, string>;
@@ -34,7 +37,18 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     throw new Error(message);
   }
 
-  return response.json() as Promise<T>;
+  const contentType = response.headers.get('content-type') || '';
+  const text = await response.text();
+
+  if (!text) {
+    return {} as T;
+  }
+
+  if (contentType.includes('application/json')) {
+    return JSON.parse(text) as T;
+  }
+
+  return text as T;
 }
 
 export const apiClient = {

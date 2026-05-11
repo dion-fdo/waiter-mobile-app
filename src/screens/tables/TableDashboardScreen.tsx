@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,21 +9,32 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Image,
+  StatusBar,
+  Animated,
+  Easing,
 } from 'react-native';
 import { getTables } from '../../services/api/tableApi';
+import { getActiveOrdersByTable } from '../../services/api/orderApi';
 import { useAppContext } from '../../context/AppContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
-import { RestaurantTable} from '../../types/table';
+import { RestaurantTable } from '../../types/table';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TableDashboard'>;
 
 type TableFilter = 'all' | 'free' | 'partially_occupied' | 'full';
 
+const DESIGN_WIDTH = 360;
+const DESIGN_HEIGHT = 772;
+
 export default function TableDashboardScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<TableFilter>('all');
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const {
+    selectedWaiter,
     setSelectedTable,
     startNewOrderSession,
     logout,
@@ -31,14 +42,23 @@ export default function TableDashboardScreen({ navigation }: Props) {
     selectedPersonCount,
     setSelectedPersonCount,
   } = useAppContext();
+
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [loadingTables, setLoadingTables] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [personCountModalVisible, setPersonCountModalVisible] = useState(false);
   const [pendingTable, setPendingTable] = useState<RestaurantTable | null>(null);
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
-  const numColumns = width >= 900 ? 4 : width >= 600 ? 3 : 2;
+  const personSheetAnim = useState(new Animated.Value(320))[0];
+  const logoutSheetAnim = useState(new Animated.Value(320))[0];
+
+  const scaleW = width / DESIGN_WIDTH;
+  const scaleH = height / DESIGN_HEIGHT;
+  const scale = Math.min(scaleW, scaleH);
+
+  const numColumns = width >= 900 ? 4 : 3;
 
   const filteredTables = useMemo(() => {
     if (filter === 'all') return tables;
@@ -46,13 +66,43 @@ export default function TableDashboardScreen({ navigation }: Props) {
   }, [filter, tables]);
 
   const handleTablePress = async (table: RestaurantTable) => {
-  if (table.status === 'full') {
-    setSelectedTable(table);
-    navigation.navigate('OrderStatus');
-    return;
-  }
+    try {
+      const token = await ensureValidToken();
 
-  const maxAllowed = getMaxAllowedPeople(table);
+      const activeOrders = await getActiveOrdersByTable(
+        Number(table.id),
+        token || undefined
+      );
+
+      const activeTableOrders = activeOrders.data.filter(
+        (order) => ![4, 5].includes(order.order_status)
+      );
+
+      if (activeTableOrders.length > 0) {
+        navigation.navigate('TableOrders', {
+          tableId: Number(table.id),
+          tableName: table.name ?? `Table ${table.number}`,
+          tableStatus: table.status,
+        });
+
+        return;
+      }
+    } catch (error: any) {
+      const message = error?.message || '';
+
+      if (
+        message.toLowerCase().includes('active order not found') ||
+        message.toLowerCase().includes('404')
+      ) {
+        // continue to new-order flow
+      } else {
+        Alert.alert('Failed to load table order', message || 'Please try again');
+        return;
+      }
+    }
+
+    const maxAllowed = getMaxAllowedPeople(table);
+
     if (maxAllowed <= 0) {
       Alert.alert('Table is full');
       return;
@@ -85,12 +135,35 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const loadTables = async () => {
     try {
       const token = await ensureValidToken();
-      const data = await getTables(token || undefined);
+      const data = await getTables(token || undefined, selectedWaiter?.branchId);
       setTables(data);
     } catch (error: any) {
       Alert.alert('Failed to load tables', error?.message || 'Please try again');
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const refreshTables = async () => {
+        try {
+          setLoadingTables(true);
+          await loadTables();
+        } finally {
+          if (isActive) {
+            setLoadingTables(false);
+          }
+        }
+      };
+
+      refreshTables();
+
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
 
   const getMaxAllowedPeople = (table: RestaurantTable) => {
     if (
@@ -104,17 +177,26 @@ export default function TableDashboardScreen({ navigation }: Props) {
   };
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        setLoadingTables(true);
-        await loadTables();
-      } finally {
-        setLoadingTables(false);
-      }
-    };
+    Animated.timing(personSheetAnim, {
+      toValue: personCountModalVisible ? 0 : 320,
+      duration: personCountModalVisible ? 260 : 180,
+      easing: personCountModalVisible
+        ? Easing.out(Easing.cubic)
+        : Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [personCountModalVisible, personSheetAnim]);
 
-    init();
-  }, []);
+  useEffect(() => {
+    Animated.timing(logoutSheetAnim, {
+      toValue: logoutModalVisible ? 0 : 320,
+      duration: logoutModalVisible ? 260 : 180,
+      easing: logoutModalVisible
+        ? Easing.out(Easing.cubic)
+        : Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [logoutModalVisible, logoutSheetAnim]);
 
   const handleRefresh = async () => {
     try {
@@ -126,118 +208,209 @@ export default function TableDashboardScreen({ navigation }: Props) {
   };
 
   const handleLogout = () => {
+    setLogoutModalVisible(true);
+  };
+
+  const confirmLogout = () => {
+    setLogoutModalVisible(false);
+
     logout();
+
     navigation.reset({
       index: 0,
       routes: [{ name: 'Welcome' }],
     });
   };
-  
+
+  const getTableIcon = (status: RestaurantTable['status']) => {
+    if (status === 'free') {
+      return require('../../../assets/tables/table-free.png');
+    }
+
+    if (status === 'partially_occupied') {
+      return require('../../../assets/tables/table-not-full.png');
+    }
+
+    return require('../../../assets/tables/table-full.png');
+  };
+
+  const getFilterLabel = () => {
+    if (filter === 'free') return 'Free Tables';
+    if (filter === 'partially_occupied') return 'Not Full Tables';
+    if (filter === 'full') return 'Full Tables';
+    return 'All Tables';
+  };
+
+  const horizontalListPadding = 22 * scaleW;
+  const cardGap = 12 * scaleW;
+
+  const cardSize =
+    (width - horizontalListPadding * 2 - cardGap * (numColumns - 1)) / numColumns;
+
 
   const renderTable = ({ item }: { item: RestaurantTable }) => {
-    const statusStyle =
+    const cardBg =
       item.status === 'free'
-        ? styles.freeCard
+        ? '#f0f0f0'
         : item.status === 'partially_occupied'
-        ? styles.partialCard
-        : styles.fullCard;
+        ? '#ffe5bd'
+        : '#ffd4c1';
 
-    const statusTextStyle =
+    const cornerBg =
       item.status === 'free'
-        ? styles.freeText
+        ? '#767676'
         : item.status === 'partially_occupied'
-        ? styles.partialText
-        : styles.fullText;
+        ? 'rgb(235, 185, 47)'
+        : '#F05822';
 
     return (
       <Pressable
-        style={[styles.tableCard, statusStyle]}
+        style={[
+          styles.tableCard,
+          {
+            backgroundColor: cardBg,
+            width: cardSize,
+            height: cardSize,
+            borderRadius: 16 * scale,
+            marginBottom: 14 * scaleH,
+          },
+        ]}
         onPress={() => handleTablePress(item)}
       >
-        <Text style={styles.tableNumber}>
-          {item.name ?? `Table ${item.number}`}
-        </Text>
-
-        <Text style={[styles.tableStatus, statusTextStyle]}>
-          {item.status === 'free'
-            ? 'FREE'
-            : item.status === 'partially_occupied'
-            ? 'NOT FULL'
-            : 'FULL'}
-        </Text>
-
-        {item.capacity ? (
-          <Text style={styles.capacityText}>
-            Capacity: {item.capacity}
+        <View
+          style={[
+            styles.tableCorner,
+            {
+              backgroundColor: cornerBg,
+              width: 40 * scale,
+              height: 40 * scale,
+              borderBottomLeftRadius: 28 * scale,
+              borderTopRightRadius: 16 * scale,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.tableNumber,
+              {
+                fontSize: 14 * scale,
+              },
+            ]}
+          >
+            {item.number}
           </Text>
-        ) : null}
+        </View>
 
-        {typeof item.occupiedPeople === 'number' ? (
-          <Text style={styles.capacityText}>
-            Occupied: {item.occupiedPeople}
-          </Text>
-        ) : null}
-
-        {typeof item.remainingCapacity === 'number' ? (
-          <Text style={styles.capacityText}>
-            Remaining: {item.remainingCapacity}
-          </Text>
-        ) : null}
+        <Image
+          source={getTableIcon(item.status)}
+          style={{
+            width: 85 * scale,
+            height: 85 * scaleH,
+            marginTop: 13 * scaleH,
+          }}
+          resizeMode="contain"
+        />
       </Pressable>
     );
   };
 
+
   if (loadingTables) {
     return (
-      <View
-        style={[
-          styles.container,
-          { justifyContent: 'center', alignItems: 'center' },
-        ]}
-      >
-        <ActivityIndicator size="large" />
-        <Text style={{ marginTop: 12, color: '#6B7280' }}>
-          Loading tables...
-        </Text>
+      <View style={[styles.container, styles.loadingWrap]}>
+        <StatusBar barStyle="dark-content" />
+
+        <Image
+          source={require('../../../assets/loading.gif')}
+          style={styles.loaderGif}
+          resizeMode="contain"
+        />
+
+        <Text style={styles.loadingText}>Loading</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.header}>Tables</Text>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="dark-content" />
 
-        <Pressable style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </Pressable>
+      <View
+        style={[
+          styles.topHeader,
+          {
+            marginTop: 0,
+            marginHorizontal: 6 * scaleW,
+            minHeight: 60 * scaleH,
+            borderRadius: 10 * scale,
+            paddingHorizontal: 8 * scaleW,
+          },
+        ]}
+      >
+        <View style={styles.leftHeader}>
+          <Image
+            source={require('../../../assets/logo-icon.png')}
+            style={{
+              width: 42 * scale,
+              height: 42 * scale,
+              marginRight: 5 * scaleW,
+            }}
+            resizeMode="contain"
+          />
+          <Text
+            style={[
+              styles.waiterName,
+              {
+                fontSize: 12 * scale,
+              },
+            ]}
+            numberOfLines={2}
+          >
+            {selectedWaiter?.email || selectedWaiter?.name || 'Waiter 01'}
+          </Text>
+        </View>
+
+        <View style={styles.rightHeader}>
+          {/* <Pressable style={styles.headerAction}>
+            <Text
+              style={[
+                styles.statsText,
+                {
+                  fontSize: 13 * scale,
+                },
+              ]}
+            >
+              Your Stats
+            </Text>
+          </Pressable> */}
+
+          <Pressable style={styles.headerAction} onPress={handleLogout}>
+            <Text
+              style={[
+                styles.logoutText,
+                {
+                  fontSize: 13 * scale,
+                },
+              ]}
+            >
+              Logout
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
-      <View style={styles.filterRow}>
-        <FilterButton
-          label="All"
-          active={filter === 'all'}
-          onPress={() => setFilter('all')}
-        />
-
-        <FilterButton
-          label="Free"
-          active={filter === 'free'}
-          onPress={() => setFilter('free')}
-        />
-
-        <FilterButton
-          label="Not Full"
-          active={filter === 'partially_occupied'}
-          onPress={() => setFilter('partially_occupied')}
-        />
-
-        <FilterButton
-          label="Full"
-          active={filter === 'full'}
-          onPress={() => setFilter('full')}
-        />
-      </View>
+      <Text
+        style={[
+          styles.screenTitle,
+          {
+            fontSize: 16 * scale,
+            marginTop: 15 * scaleH,
+            marginBottom: 15 * scaleH,
+          },
+        ]}
+      >
+        {getFilterLabel()}
+      </Text>
 
       <FlatList
         key={numColumns}
@@ -246,82 +419,302 @@ export default function TableDashboardScreen({ navigation }: Props) {
         renderItem={renderTable}
         numColumns={numColumns}
         columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          {
+            paddingHorizontal: horizontalListPadding,
+            paddingBottom: 110 * scaleH,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={handleRefresh}
       />
 
+      <View
+        style={[
+          styles.bottomFilterBar,
+          {
+            width: '80%',
+            alignSelf: 'center',
+            height: 75 * scaleH,
+            borderTopLeftRadius: 22 * scale,
+            borderTopRightRadius: 22 * scale,
+            paddingHorizontal: 18 * scaleW,
+            paddingBottom: 6 * scaleH,
+            marginBottom: 0,
+
+          },
+        ]}
+      >
+        <BottomTab
+          label="All"
+          active={filter === 'all'}
+          onPress={() => setFilter('all')}
+          scale={scale}
+        />
+        <BottomTab
+          label="Free"
+          active={filter === 'free'}
+          onPress={() => setFilter('free')}
+          scale={scale}
+        />
+        <BottomTab
+          label="Not Full"
+          active={filter === 'partially_occupied'}
+          onPress={() => setFilter('partially_occupied')}
+          scale={scale}
+        />
+        <BottomTab
+          label="Full"
+          active={filter === 'full'}
+          onPress={() => setFilter('full')}
+          scale={scale}
+        />
+      </View>
+
       <Modal
         visible={personCountModalVisible}
         transparent
         animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setPersonCountModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Table Person Count</Text>
+        <View style={styles.bottomSheetOverlay}>
+          <Pressable
+            style={styles.bottomSheetBackdrop}
+            onPress={() => setPersonCountModalVisible(false)}
+          />
+
+          <Animated.View
+            style={[
+              styles.bottomSheetCard,
+              {
+                paddingVertical: 28 * scaleH,
+                paddingHorizontal: 24 * scaleW,
+                transform: [{ translateY: personSheetAnim }],
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.modalTitle,
+                {
+                  fontSize: 18 * scale,
+                  marginBottom: 8 * scaleH,
+                },
+              ]}
+            >
+              Table Person Count
+            </Text>
 
             {pendingTable ? (
-              <Text style={styles.modalSubText}>
+              <Text
+                style={[
+                  styles.modalSubText,
+                  {
+                    fontSize: 14 * scale,
+                    marginBottom: 24 * scaleH,
+                  },
+                ]}
+              >
                 Max allowed: {getMaxAllowedPeople(pendingTable)}
               </Text>
             ) : null}
 
-            <View style={styles.personCountRow}>
+            <View
+              style={[
+                styles.personCountRow,
+                {
+                  marginBottom: 28 * scaleH,
+                },
+              ]}
+            >
               <Pressable
-                style={styles.personCountButton}
+                style={[
+                  styles.personCountButton,
+                  {
+                    width: 50 * scale,
+                    height: 50 * scaleH,
+                    borderRadius: 14 * scale,
+                  },
+                ]}
                 onPress={handleDecreasePersonCount}
               >
-                <Text style={styles.personCountButtonText}>-</Text>
+                <Text
+                  style={[
+                    styles.personCountButtonText,
+                    {
+                      fontSize: 20 * scale,
+                    },
+                  ]}
+                >
+                  -
+                </Text>
               </Pressable>
 
-              <View style={styles.personCountValueBox}>
-                <Text style={styles.personCountValueText}>
+              <View
+                style={[
+                  styles.personCountValueBox,
+                  {
+                    minWidth: 74 * scale,
+                    height: 66 * scaleH,
+                    borderRadius: 14 * scale,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.personCountValueText,
+                    {
+                      fontSize: 24 * scale,
+                    },
+                  ]}
+                >
                   {selectedPersonCount}
                 </Text>
               </View>
 
               <Pressable
-                style={styles.personCountButton}
+                style={[
+                  styles.personCountButton,
+                  {
+                    width: 50 * scale,
+                    height: 50 * scaleH,
+                    borderRadius: 14 * scale,
+                  },
+                ]}
                 onPress={handleIncreasePersonCount}
               >
-                <Text style={styles.personCountButtonText}>+</Text>
+                <Text
+                  style={[
+                    styles.personCountButtonText,
+                    {
+                      fontSize: 20 * scale,
+                    },
+                  ]}
+                >
+                  +
+                </Text>
               </Pressable>
             </View>
 
             <Pressable
-              style={styles.confirmPersonButton}
+              style={[
+                styles.confirmPersonButton,
+                {
+                  paddingVertical: 14 * scaleH,
+                  borderRadius: 14 * scale,
+                  marginBottom: 10 * scaleH,
+                },
+              ]}
               onPress={handleConfirmPersonCount}
             >
-              <Text style={styles.confirmPersonButtonText}>Continue</Text>
+              <Text
+                style={[
+                  styles.confirmPersonButtonText,
+                  {
+                    fontSize: 16 * scale,
+                  },
+                ]}
+              >
+                Continue
+              </Text>
             </Pressable>
 
             <Pressable
-              style={styles.cancelPersonButton}
+              style={[
+                styles.cancelPersonButton,
+                {
+                  paddingVertical: 12 * scaleH,
+                  borderRadius: 14 * scale,
+                },
+              ]}
               onPress={() => setPersonCountModalVisible(false)}
             >
-              <Text style={styles.cancelPersonButtonText}>Cancel</Text>
+              <Text
+                style={[
+                  styles.cancelPersonButtonText,
+                  {
+                    fontSize: 15 * scale,
+                  },
+                ]}
+              >
+                Cancel
+              </Text>
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
-    </View>
+
+      <Modal
+        visible={logoutModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={() => setLogoutModalVisible(false)}
+      >
+        <View style={styles.bottomSheetOverlay}>
+          <Pressable
+            style={styles.bottomSheetBackdrop}
+            onPress={() => setLogoutModalVisible(false)}
+          />
+
+          <Animated.View
+            style={[
+              styles.bottomSheetCard,
+              {
+                transform: [{ translateY: logoutSheetAnim }],
+              },
+            ]}
+          >
+            <Text style={styles.logoutSheetTitle}>Are you sure?</Text>
+
+            <Pressable
+              style={styles.logoutYesButton}
+              onPress={confirmLogout}
+            >
+              <Text style={styles.logoutYesButtonText}>Yes</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.logoutCancelButton}
+              onPress={() => setLogoutModalVisible(false)}
+            >
+              <Text style={styles.logoutCancelButtonText}>Cancel</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
+
+    </SafeAreaView>
   );
 }
 
-type FilterButtonProps = {
+type BottomTabProps = {
   label: string;
   active: boolean;
   onPress: () => void;
+  scale: number;
 };
 
-function FilterButton({ label, active, onPress }: FilterButtonProps) {
+function BottomTab({ label, active, onPress, scale }: BottomTabProps) {
   return (
-    <Pressable style={[styles.filterButton, active && styles.activeFilterButton]} onPress={onPress}>
-      <Text style={[styles.filterButtonText, active && styles.activeFilterButtonText]}>
+    <Pressable style={styles.bottomTab} onPress={onPress}>
+      <Text
+        style={[
+          styles.bottomTabText,
+          active && styles.bottomTabTextActive,
+          {
+            fontSize: 14 * scale,
+          },
+        ]}
+      >
         {label}
       </Text>
+      {active ? <View style={styles.bottomTabUnderline} /> : null}
     </Pressable>
   );
 }
@@ -329,179 +722,195 @@ function FilterButton({ label, active, onPress }: FilterButtonProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingTop: 16,
-    paddingHorizontal: 16,
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
-  },
-  filterButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  activeFilterButton: {
-    backgroundColor: '#F97316',
-    borderColor: '#F97316',
-  },
-  filterButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  activeFilterButtonText: {
-    color: '#FFFFFF',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    backgroundColor: '#ffffff',
   },
 
-  logoutButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-
-  logoutButtonText: {
-    color: '#111827',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  
-  listContent: {
-    paddingBottom: 24,
-  },
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  tableCard: {
-    flex: 1,
-    minHeight: 110,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  tableNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 10,
-  },
-  tableStatus: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  freeText: {
-    color: '#15803D',
-  },
-  freeCard: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#22C55E',
-  },
-
-  partialCard: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-  },
-
-  fullCard: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#EF4444',
-  },
-
-  partialText: {
-    color: '#92400E',
-  },
-
-  fullText: {
-    color: '#991B1B',
-  },
-
-  capacityText: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 6,
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+  loadingWrap: {
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
   },
 
-  modalCard: {
+  loadingText: {
+    marginTop: 12,
+    color: '#6B7280',
+    fontFamily: 'Inter',
+    fontSize: 15,
+  },
+
+  topHeader: {
+    backgroundColor: '#F05822',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  leftHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  rightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+
+  headerAction: {
+    marginLeft: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  waiterName: {
+    color: '#FFFFFF',
+    fontFamily: 'InstrumentSerif-Regular',
+    fontStyle: 'italic',
+    flexShrink: 1,
+  },
+
+  statsText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+
+  logoutText: {
+    color: '#ffffff',
+    fontFamily: 'Inter',
+    fontWeight: '700',
+  },
+
+  screenTitle: {
+    textAlign: 'center',
+    color: '#F05822',
+    fontFamily: 'Inter',
+    fontWeight: '700',
+  },
+
+  listContent: {
+    paddingTop: 0,
+  },
+
+  row: {
+    justifyContent: 'flex-start',
+    gap: 12,
+  },
+
+  tableCard: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+
+  tableCorner: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+
+  tableNumber: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    marginTop: 2,
+  },
+
+  bottomFilterBar: {
+    position: 'absolute',
+    bottom: 0,
+    backgroundColor: '#000000',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+
+  bottomTab: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 58,
+  },
+
+  bottomTabText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '400',
+  },
+
+  bottomTabTextActive: {
+    color: '#F55A1F',
+    fontWeight: '600',
+  },
+
+  bottomTabUnderline: {
+    marginTop: 8,
+    width: 48,
+    height: 2,
+    backgroundColor: '#F55A1F',
+    borderRadius: 999,
+  },
+
+  bottomSheetOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+
+  bottomSheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+
+  bottomSheetCard: {
     width: '100%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 28,
-    paddingVertical: 28,
-    paddingHorizontal: 24,
-    alignItems: 'center',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 26,
+    paddingTop: 22,
+    paddingBottom: 24,
+    marginBottom: 0,
   },
 
   modalTitle: {
-    fontSize: 24,
-    fontWeight: '700',
     color: '#111827',
-    marginBottom: 8,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    textAlign: 'center',
   },
 
   modalSubText: {
-    fontSize: 14,
     color: '#6B7280',
-    marginBottom: 24,
+    fontFamily: 'Inter',
+    textAlign: 'center',
   },
 
   personCountRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 18,
-    marginBottom: 28,
+    gap: 28,
   },
 
   personCountButton: {
-    width: 74,
-    height: 66,
-    borderRadius: 14,
-    backgroundColor: '#F97316',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   personCountButtonText: {
-    fontSize: 34,
-    fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '700',
     lineHeight: 36,
   },
 
   personCountValueBox: {
-    minWidth: 74,
-    height: 66,
-    borderRadius: 14,
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
@@ -509,36 +918,76 @@ const styles = StyleSheet.create({
   },
 
   personCountValueText: {
-    fontSize: 30,
-    fontWeight: '700',
     color: '#111827',
+    fontFamily: 'Inter',
+    fontWeight: '700',
   },
 
   confirmPersonButton: {
     width: '100%',
-    backgroundColor: '#F97316',
-    paddingVertical: 14,
-    borderRadius: 14,
+    backgroundColor: '#F05822',
     alignItems: 'center',
-    marginBottom: 10,
   },
 
   confirmPersonButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontFamily: 'Inter',
     fontWeight: '700',
   },
 
   cancelPersonButton: {
     width: '100%',
-    paddingVertical: 12,
-    borderRadius: 14,
     alignItems: 'center',
   },
 
   cancelPersonButtonText: {
     color: '#6B7280',
-    fontSize: 15,
+    fontFamily: 'Inter',
     fontWeight: '600',
+  },
+
+  logoutSheetTitle: {
+    textAlign: 'center',
+    fontSize: 22,
+    fontFamily: 'Inter',
+    fontWeight: '800',
+    color: '#111111',
+    marginBottom: 26,
+  },
+
+  logoutYesButton: {
+    width: '100%',
+    backgroundColor: '#F55A1F',
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 18,
+    fontWeight: '300',
+  },
+
+  logoutYesButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+  },
+
+  logoutCancelButton: {
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+
+  logoutCancelButtonText: {
+    color: '#5a5a5a',
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+  },
+
+  loaderGif: {
+    width: 100,
+    height: 100,
   },
 });

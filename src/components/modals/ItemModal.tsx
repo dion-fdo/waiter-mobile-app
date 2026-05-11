@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { MenuItem, MenuAddOn } from '../../types/menuItem';
 import { useAppContext } from '../../context/AppContext';
@@ -33,12 +34,15 @@ function buildSelectedAddOn(
 }
 
 export default function ItemModal({ visible, onClose, item }: Props) {
-  const { addToCart } = useAppContext();
+  const { addToCart, isEditingPlacedOrder } = useAppContext();
 
-  const defaultVariantName = item?.variants?.[0]?.variantName;
-  const [selectedVariantName, setSelectedVariantName] = useState<string>(
-    defaultVariantName ?? ''
+  const sheetTranslateY = useRef(new Animated.Value(320)).current;
+
+  const defaultVariantId = item?.variants?.[0]?.variantId;
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(
+    defaultVariantId ?? ''
   );
+  
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
   const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
@@ -46,17 +50,38 @@ export default function ItemModal({ visible, onClose, item }: Props) {
   useEffect(() => {
     if (!item) return;
 
-    setSelectedVariantName(item.variants?.[0]?.variantName ?? '');
+    setSelectedVariantId(item.variants?.[0]?.variantId ?? '');
     setQty(1);
     setNote('');
     setSelectedAddOnIds([]);
   }, [item, visible]);
 
+  useEffect(() => {
+    if (visible) {
+      sheetTranslateY.setValue(320);
+      Animated.timing(sheetTranslateY, {
+        toValue: 0,
+        duration: 260,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible, sheetTranslateY]);
+
+  const handleCloseModal = () => {
+    Animated.timing(sheetTranslateY, {
+      toValue: 320,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      onClose();
+    });
+  };
+
   const selectedVariant = useMemo(() => {
     return item?.variants?.find(
-      (variant) => variant.variantName === selectedVariantName
+      (variant) => variant.variantId === selectedVariantId
     );
-  }, [item, selectedVariantName]);
+  }, [item, selectedVariantId]);
 
   const selectedAddOns: SelectedAddOn[] = useMemo(() => {
     if (!item?.addOns?.length) return [];
@@ -99,16 +124,27 @@ export default function ItemModal({ visible, onClose, item }: Props) {
       note: note.trim(),
     });
 
-    onClose();
+    handleCloseModal();
   };
 
   if (!item) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+    <Modal
+  visible={visible}
+  transparent
+  animationType="fade"
+  onRequestClose={handleCloseModal}
+>
+  <View style={styles.overlay}>
+    <Pressable style={styles.backdrop} onPress={handleCloseModal} />
+      <Animated.View
+        style={[
+          styles.modal,
+          { transform: [{ translateY: sheetTranslateY }] },
+        ]}
+      >
+        <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.title}>{item.name}</Text>
             <Text style={styles.price}>LKR {displayPrice.toFixed(2)}</Text>
 
@@ -117,13 +153,13 @@ export default function ItemModal({ visible, onClose, item }: Props) {
                 <Text style={styles.section}>Variant</Text>
                 <View style={styles.rowWrap}>
                   {item.variants.map((variant) => {
-                    const selected = selectedVariantName === variant.variantName;
+                    const selected = selectedVariantId === variant.variantId;
 
                     return (
                       <Pressable
                         key={variant.variantId}
                         style={[styles.option, selected && styles.selectedOption]}
-                        onPress={() => setSelectedVariantName(variant.variantName)}
+                        onPress={() => setSelectedVariantId(variant.variantId)}
                       >
                         <Text style={styles.optionText}>{variant.variantName}</Text>
                         <Text style={styles.optionSubText}>
@@ -197,11 +233,11 @@ export default function ItemModal({ visible, onClose, item }: Props) {
               <Text style={styles.addBtnText}>Add to Cart</Text>
             </Pressable>
 
-            <Pressable style={styles.cancelBtn} onPress={onClose}>
+            <Pressable style={styles.cancelBtn} onPress={handleCloseModal}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </Pressable>
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -210,20 +246,20 @@ export default function ItemModal({ visible, onClose, item }: Props) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'flex-end',
   },
   modal: {
     backgroundColor: '#FFFFFF',
     padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     maxHeight: '85%',
   },
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
+    color: '#F05822',
   },
   price: {
     fontSize: 16,
@@ -254,8 +290,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
   selectedOption: {
-    backgroundColor: '#FDBA74',
-    borderColor: '#F97316',
+    backgroundColor: '#FFF7ED',
+    borderColor: '#F05822',
   },
   optionText: {
     fontSize: 15,
@@ -305,7 +341,7 @@ const styles = StyleSheet.create({
   },
   selectedAddOnChip: {
     backgroundColor: '#FFF7ED',
-    borderColor: '#F97316',
+    borderColor: '#F05822',
   },
   addOnChipText: {
     color: '#111827',
@@ -329,7 +365,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   addBtn: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05822',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -350,4 +386,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  }
 });

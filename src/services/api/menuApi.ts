@@ -1,6 +1,8 @@
 import { apiClient } from './client';
 import { MenuItem } from '../../types/menuItem';
 
+import { ENV } from '../../config/env';
+
 type BackendVariant = {
   variantid?: number;
   variant_id?: number;
@@ -61,9 +63,14 @@ function mapFoodItem(item: BackendFoodItem): MenuItem {
   return {
     id: String(item.id),
     name: item.name,
+    // image: item.product_image
+    //   ? encodeURI(`https://cuisinedev.kernelencode.com/${item.product_image}`)
+    //   : undefined,
+
     image: item.product_image
-      ? encodeURI(`https://cuisine.kernelencode.com/${item.product_image}`)
+      ? encodeURI(`${ENV.BASE_URL}/${item.product_image}`)
       : undefined,
+
     categoryId: item.category_id ? String(item.category_id) : undefined,
     categoryName: item.category_name,
     component: item.component,

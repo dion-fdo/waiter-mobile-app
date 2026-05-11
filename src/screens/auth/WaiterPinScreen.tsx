@@ -52,6 +52,10 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
       setSelectedWaiter({
         id: String(response.user.id),
         waiterId: String(response.user.waiter_id),
+        branchId:
+          response.user.branch_id !== null && response.user.branch_id !== undefined
+            ? String(response.user.branch_id)
+            : undefined,
         email: response.user.email,
         name: response.user.email,
       });
@@ -167,7 +171,7 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
                 height: 56 * scaleH,
                 borderRadius: 999,
                 backgroundColor: password.trim()
-                  ? '#F97316'
+                  ? '#F05822'
                   : '#FDBA74',
               },
             ]}
@@ -244,7 +248,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   button: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F05822',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center', 

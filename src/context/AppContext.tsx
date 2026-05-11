@@ -6,13 +6,17 @@ import { MenuItem } from '../types/menuItem';
 import { getM2MToken } from '../services/api/authApi';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Customer } from '../types/customer';
-import { createOrder } from '../services/api/orderApi';
+import { createOrder, updateOrder, OrderDetailsResponse} from '../services/api/orderApi';
 
+import { ENV } from '../config/env';
 
 type ItemSize = string;
 
-const M2M_CLIENT_ID = '019d4274-4a0a-71b5-a30b-15cbe9d9c522';
-const M2M_CLIENT_SECRET = '1jvKvb6WLlaSHTy4odfHTtsjA5tIlpjWKukKaBBP';
+// const M2M_CLIENT_ID = '019d4274-4a0a-71b5-a30b-15cbe9d9c522';
+// const M2M_CLIENT_SECRET = '1jvKvb6WLlaSHTy4odfHTtsjA5tIlpjWKukKaBBP';
+
+const M2M_CLIENT_ID = ENV.M2M_CLIENT_ID;
+const M2M_CLIENT_SECRET = ENV.M2M_CLIENT_SECRET;
 
 const ORDER_DRAFT_STORAGE_KEY = 'waiter_app_table_order_draft';
 
@@ -42,6 +46,7 @@ type PlacedOrder = {
   subtotal: number;
   serviceCharge: number;
   total: number;
+  customerId?: number | null;
 };
 
 
@@ -66,6 +71,8 @@ type AppContextType = {
 
   selectedCustomer: Customer | null;
   setSelectedCustomer: (customer: Customer | null) => void;
+
+  saveCurrentTableDraft: () => Promise<void>;
 
   cartItems: CartItem[];
   
@@ -92,11 +99,19 @@ type AppContextType = {
   startEditPlacedOrder: () => void;
   updateEditOrderItemQty: (id: string, type: 'inc' | 'dec') => void;
   removeEditOrderItem: (id: string) => void;
-  confirmEditPlacedOrder: () => void;
+  confirmEditPlacedOrder: () => Promise<boolean>;
   cancelEditPlacedOrder: () => void;
 
   editSubtotal: number;
   editTotal: number;
+
+  isEditingPlacedOrder: boolean;
+  setIsEditingPlacedOrder: (value: boolean) => void;
+
+  startEditBackendOrder: (
+    orderData: OrderDetailsResponse['data'],
+    table?: RestaurantTable | null
+  ) => void;
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -135,6 +150,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [editOrderItems, setEditOrderItems] = useState<CartItem[]>([]);
+  const [isEditingPlacedOrder, setIsEditingPlacedOrder] = useState(false);
 
   const [serviceCharge, setServiceCharge] = useState(0);
 
@@ -202,6 +218,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const saveCurrentTableDraft = async () => {
+    if (!selectedTable) return;
+
+    await saveDraftForTable(
+      selectedTable,
+      cartItems,
+      selectedCustomer,
+      selectedPersonCount
+    );
+  };
+
   const clearDraftForTable = async (tableId: string) => {
     try {
       const drafts = await getAllTableDraftsFromStorage();
@@ -212,28 +239,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  useEffect(() => {
-    const saveCurrentTableDraft = async () => {
-      if (!selectedTable) return;
+  const saveDraftForTable = async (
+    table: RestaurantTable,
+    items: CartItem[],
+    customer: Customer | null,
+    personCount: number
+  ) => {
+    try {
+      const drafts = await getAllTableDraftsFromStorage();
 
-      try {
-        const drafts = await getAllTableDraftsFromStorage();
-
-        drafts[selectedTable.id] = {
-        table: selectedTable,
-        cartItems,
-        selectedCustomer,
-        selectedPersonCount,
+      drafts[String(table.id)] = {
+        table,
+        cartItems: cloneCartItems(items),
+        selectedCustomer: customer,
+        selectedPersonCount: personCount,
       };
 
-        await saveAllTableDraftsToStorage(drafts);
-      } catch (error) {
-        console.log('Failed to save current table draft', error);
-      }
-    };
-
-    saveCurrentTableDraft();
-  }, [selectedTable, cartItems, selectedCustomer, selectedPersonCount]);
+      await saveAllTableDraftsToStorage(drafts);
+    } catch (error) {
+      console.log('Failed to save draft for table', error);
+    }
+  };
 
   const ensureValidToken = async () => {
     if (authToken && tokenExpiryTime && Date.now() < tokenExpiryTime - 30000) {
@@ -258,7 +284,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       note
     );
 
-    setCartItems((prev) => {
+    const targetSetter = isEditingPlacedOrder
+      ? setEditOrderItems
+      : setCartItems;
+
+    targetSetter((prev) => {
       const existingItem = prev.find((item) => item.id === cartItemId);
 
       if (existingItem) {
@@ -314,6 +344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCartItems([]);
     setPlacedOrder(null);
     setEditOrderItems([]);
+    setIsEditingPlacedOrder(false);
     clearAllTableDraftsFromStorage();
   };
 
@@ -325,10 +356,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const total = subtotal + serviceCharge;
 
   const startNewOrderSession = async (table: RestaurantTable) => {
+  // save current table draft before switching away
+    if (selectedTable) {
+      await saveDraftForTable(
+        selectedTable,
+        cartItems,
+        selectedCustomer,
+        selectedPersonCount
+      );
+    }
+
+    // read next table draft first
+    const drafts = await getAllTableDraftsFromStorage();
+    const nextDraft = drafts[String(table.id)];
+
     setSelectedTable(table);
     setPlacedOrder(null);
     setEditOrderItems([]);
-    await loadDraftForTable(table);
+    setIsEditingPlacedOrder(false);
+
+    if (nextDraft) {
+      setCartItems(nextDraft.cartItems ?? []);
+      setSelectedCustomer(nextDraft.selectedCustomer ?? null);
+      setSelectedPersonCount(nextDraft.selectedPersonCount ?? 1);
+    } else {
+      setCartItems([]);
+      setSelectedCustomer(null);
+      setSelectedPersonCount(1);
+    }
   };
 
   const placeOrder = async (): Promise<boolean> => {
@@ -339,6 +394,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (!selectedWaiter?.waiterId) {
         throw new Error('Waiter not selected');
+      }
+
+      if (!selectedWaiter?.branchId) {
+        throw new Error('Waiter branch not selected');
       }
 
       if (!selectedCustomer?.id) {
@@ -357,6 +416,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         customer_id: Number(selectedCustomer.id),
         order_date: today,
         waiter_id: Number(selectedWaiter.waiterId),
+        branch_id: Number(selectedWaiter.branchId),
         tableid: Number(selectedTable.id),
         room_id: null,
         reservation_id: null,
@@ -367,11 +427,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           food_id: Number(item.menuId),
           variant_id: Number(item.variantId),
           qty: item.qty,
-          price: item.price,
+          
+          price:
+            item.selectedAddOns?.length
+              ? item.price -
+                item.selectedAddOns.reduce(
+                  (sum, addOn) => sum + addOn.price * addOn.qty,
+                  0
+                )
+              : item.price,
+              
           addonsid:
             item.selectedAddOns?.map((addOn) => addOn.addOnId).join(',') ?? '',
           addonsqty:
-            item.selectedAddOns?.map((addOn) => String(addOn.qty)).join(',') ?? '',
+            item.selectedAddOns
+              ?.map((a) => String(a.qty * item.qty))
+              .join(',') ?? '',
           itemnote: item.note ?? '',
           isgroup: 0,
         })),
@@ -389,6 +460,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         subtotal,
         serviceCharge: 0,
         total: subtotal,
+        customerId: Number(selectedCustomer.id),
       });
 
       await clearDraftForTable(selectedTable.id);
@@ -401,14 +473,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-
   const startEditPlacedOrder = () => {
     if (!placedOrder) {
       setEditOrderItems([]);
       return;
     }
 
+    setIsEditingPlacedOrder(true);
     setEditOrderItems(cloneCartItems(placedOrder.items));
+  };
+
+  const startEditBackendOrder = (
+    orderData: OrderDetailsResponse['data'],
+    table?: RestaurantTable | null
+  ) => {
+    const mappedItems: CartItem[] = (orderData.itemsinfo ?? []).map((item) => ({
+      id: String(item.row_id),
+      menuId: String(item.menu_id),
+      name: item.food_name || item.ProductName || 'Unnamed Item',
+      qty: item.menuqty ?? 0,
+      price: Number(item.menuprice ?? item.price ?? 0),
+      variantId: item.variantid != null ? String(item.variantid) : undefined,
+      variantName: item.variantName ?? undefined,
+      selectedAddOns: [],
+      note: item.itemnote ?? '',
+    }));
+
+    const nextSubtotal = mappedItems.reduce(
+      (sum, item) => sum + item.qty * item.price,
+      0
+    );
+
+    const nextPlacedOrder: PlacedOrder = {
+      id: String(orderData.orderinfo.order_id),
+      table: table ?? selectedTable ?? null,
+      waiter: selectedWaiter,
+      items: mappedItems,
+      subtotal: nextSubtotal,
+      serviceCharge: 0,
+      total: nextSubtotal,
+      customerId: orderData.orderinfo.customer_id ?? null,
+    };
+
+    setPlacedOrder(nextPlacedOrder);
+    setEditOrderItems(cloneCartItems(mappedItems));
+    setIsEditingPlacedOrder(true);
   };
 
   const updateEditOrderItemQty = (id: string, type: 'inc' | 'dec') => {
@@ -427,25 +536,106 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setEditOrderItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const confirmEditPlacedOrder = () => {
-    if (!placedOrder) return;
+  const confirmEditPlacedOrder = async (): Promise<boolean> => {
+    try {
+      if (!placedOrder) {
+        throw new Error('No placed order found');
+      }
 
-    const nextSubtotal = editOrderItems.reduce(
-      (sum, item) => sum + item.qty * item.price,
-      0
-    );
+      const effectiveTable = selectedTable ?? placedOrder.table;
 
-    setPlacedOrder({
-      ...placedOrder,
-      items: cloneCartItems(editOrderItems),
-      subtotal: nextSubtotal,
-      serviceCharge,
-      total: nextSubtotal + serviceCharge,
-    });
+      if (!effectiveTable) {
+        throw new Error('Table not selected');
+      }
+
+      if (!selectedWaiter?.waiterId) {
+        throw new Error('Waiter not selected');
+      }
+
+      const effectiveCustomerId =
+        selectedCustomer?.id != null
+          ? Number(selectedCustomer.id)
+          : placedOrder?.customerId ?? null;
+
+      if (effectiveCustomerId == null) {
+        throw new Error('Customer not selected');
+      }
+
+      if (editOrderItems.length === 0) {
+        throw new Error('Order must contain at least one item');
+      }
+
+      const token = await ensureValidToken();
+      const today = new Date().toISOString().split('T')[0];
+
+      const nextSubtotal = editOrderItems.reduce(
+        (sum, item) => sum + item.qty * item.price,
+        0
+      );
+
+      const payload = {
+        ctypeid: 1,
+        customer_id: effectiveCustomerId,
+        order_date: today,
+        waiter_id: Number(selectedWaiter.waiterId),
+        tableid: Number(effectiveTable.id),
+        room_id: null,
+        reservation_id: null,
+        customernote: '',
+        grandtotal: nextSubtotal,
+        tablemember: selectedPersonCount,
+        items: editOrderItems.map((item) => ({
+          food_id: Number(item.menuId),
+          variant_id: Number(item.variantId ?? 0),
+          qty: item.qty,
+          
+          price:
+            item.selectedAddOns?.length
+              ? item.price -
+                item.selectedAddOns.reduce(
+                  (sum, addOn) => sum + addOn.price * addOn.qty,
+                  0
+                )
+              : item.price,
+              
+          addonsid:
+            item.selectedAddOns?.map((addOn) => addOn.addOnId).join(',') ?? '',
+          addonsqty:
+            item.selectedAddOns
+              ?.map((a) => String(a.qty * item.qty))
+              .join(',') ?? '',
+          itemnote: item.note ?? '',
+          isgroup: 0,
+        })),
+      };
+
+      await updateOrder(
+        Number(placedOrder.id),
+        payload,
+        token || undefined
+      );
+
+      setPlacedOrder({
+        ...placedOrder,
+        items: cloneCartItems(editOrderItems),
+        subtotal: nextSubtotal,
+        serviceCharge,
+        total: nextSubtotal + serviceCharge,
+      });
+
+      setIsEditingPlacedOrder(false);
+      setEditOrderItems([]);
+
+      return true;
+    } catch (error) {
+      console.error('confirmEditPlacedOrder failed', error);
+      return false;
+    }
   };
 
   const cancelEditPlacedOrder = () => {
     setEditOrderItems([]);
+    setIsEditingPlacedOrder(false);
   };
 
   const editSubtotal = useMemo(
@@ -476,6 +666,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedCustomer,
       setSelectedCustomer,
 
+      saveCurrentTableDraft,
+
       cartItems,
       serviceCharge,
       subtotal,
@@ -497,12 +689,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearCart,
       placeOrder,
       startEditPlacedOrder,
+      startEditBackendOrder,
       updateEditOrderItemQty,
       removeEditOrderItem,
       confirmEditPlacedOrder,
       cancelEditPlacedOrder,
       editSubtotal,
       editTotal,
+
+      isEditingPlacedOrder,
+      setIsEditingPlacedOrder,
     }),
     [
       selectedWaiter,
@@ -516,6 +712,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedPersonCount,
       selectedCustomer,
       cartItems,
+      saveCurrentTableDraft,
       subtotal,
       serviceCharge,
       total,
@@ -523,6 +720,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       editOrderItems,
       editSubtotal,
       editTotal,
+
+      isEditingPlacedOrder,
+      startEditBackendOrder,
     ]
   );
 
