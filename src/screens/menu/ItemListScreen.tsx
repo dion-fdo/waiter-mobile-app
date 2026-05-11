@@ -220,8 +220,13 @@ export default function ItemListScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#F05822" />
-          <Text style={styles.loadingText}>Loading menu items...</Text>
+          <Image
+            source={require('../../../assets/loading.gif')}
+            style={styles.loaderGif}
+            resizeMode="contain"
+          />
+
+          <Text style={styles.loadingText}>Loading</Text>
         </View>
       </SafeAreaView>
     );
@@ -288,7 +293,7 @@ export default function ItemListScreen({ navigation, route }: Props) {
           }
         />
 
-        <View style={styles.bottomCartWrap}>
+        {/* <View style={styles.bottomCartWrap}>
           <Pressable
             style={styles.cartButton}
             onPress={() =>
@@ -296,6 +301,37 @@ export default function ItemListScreen({ navigation, route }: Props) {
                 isEditingPlacedOrder ? 'EditPlacedOrder' : 'Cart'
               )
             }
+          >
+            <Text style={styles.cartButtonText}>
+              {isEditingPlacedOrder ? 'Back to Edit Order' : 'View Cart'}
+            </Text>
+
+            {cartItems.length > 0 ? (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View> */}
+
+        <View style={styles.bottomCartWrap}>
+          <Pressable
+            style={styles.cartButton}
+            onPress={() => {
+              if (isEditingPlacedOrder) {
+                const tableIdNumber =
+                  selectedTable?.id != null ? Number(selectedTable.id) : undefined;
+
+                navigation.navigate('EditPlacedOrder', {
+                  tableName: selectedTable?.number
+                    ? `Table ${selectedTable.number}`
+                    : undefined,
+                  tableId: Number.isNaN(tableIdNumber) ? undefined : tableIdNumber,
+                });
+              } else {
+                navigation.navigate('Cart');
+              }
+            }}
           >
             <Text style={styles.cartButtonText}>
               {isEditingPlacedOrder ? 'Back to Edit Order' : 'View Cart'}
@@ -527,5 +563,10 @@ const styles = StyleSheet.create({
     color: '#F05822',
     fontSize: 12,
     fontWeight: '700',
+  },
+
+  loaderGif: {
+    width: 100,
+    height: 100,
   },
 });

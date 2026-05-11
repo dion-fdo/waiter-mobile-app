@@ -16,6 +16,7 @@ export type CreateOrderPayload = {
   customer_id: number;
   order_date: string;
   waiter_id: number;
+  branch_id: number;
   tableid: number;
   room_id: null;
   reservation_id: null;
@@ -95,6 +96,7 @@ export type OrderDetailsResponse = {
       order_id: number;
       customer_id: number | null;
       status: number;
+      order_source: string;
     };
     itemsinfo: OrderDetailsItemResponse[];
   };
@@ -160,6 +162,7 @@ export type ActiveTableOrderResponse = {
   data: {
     order_id: number;
     order_status: number;
+    order_source?: string;
   }[];
 };
 

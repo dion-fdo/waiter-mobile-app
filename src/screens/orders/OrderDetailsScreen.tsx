@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Modal,
   Animated,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -16,6 +17,9 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useAppContext } from '../../context/AppContext';
 import { deleteOrder, getOrderDetails } from '../../services/api/orderApi';
+
+import { searchFoods } from '../../services/api/menuApi';
+import { MenuItem } from '../../types/menuItem';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
@@ -35,6 +39,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [orderDetails, setOrderDetails] = useState<any>(null);
+  const [foodCatalog, setFoodCatalog] = useState<MenuItem[]>([]);
   const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
 
   const deleteSheetTranslateY = useRef(new Animated.Value(320)).current;
@@ -76,7 +81,22 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
       const token = await ensureValidToken();
       const response = await getOrderDetails(orderId, token || undefined);
 
-      setOrderDetails(response.data);
+      const details = response.data;
+
+      if (details.orderinfo.order_source !== 'WAITER_APP') {
+        Alert.alert(
+          'Access denied',
+          'This order cannot be viewed or edited from the waiter app.'
+        );
+
+        navigation.goBack();
+        return;
+      }
+
+      setOrderDetails(details);
+
+      const foods = await searchFoods('', token || undefined);
+      setFoodCatalog(foods);
     } catch (error) {
       console.error('Failed to load order details', error);
     } finally {
@@ -96,14 +116,76 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
     return placedOrder?.items ?? [];
   }, [orderDetails, placedOrder]);
 
+  const findFoodFromCatalog = (menuId: number) => {
+    return foodCatalog.find((food) => Number(food.id) === Number(menuId));
+  };
+
+  const getBasePriceFromCatalog = (item: any) => {
+    const food = findFoodFromCatalog(item.menu_id ?? item.menuId);
+
+    const variantId = item.varientid ?? item.variantid ?? item.variantId;
+
+    const matchedVariant = food?.variants?.find(
+      (variant) => Number(variant.variantId) === Number(variantId)
+    );
+
+    if (matchedVariant) {
+      return matchedVariant.price;
+    }
+
+    return Number(item.price ?? item.menuprice ?? 0);
+  };
+
+  const getAddOnsFromCatalog = (item: any) => {
+    const food = findFoodFromCatalog(item.menu_id ?? item.menuId);
+
+    if (!food?.addOns || !item.add_on_id) {
+      return [];
+    }
+
+    const addonIds = String(item.add_on_id)
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    const addonQtys = String(item.addonsqty ?? '')
+      .split(',')
+      .map((qty) => Number(qty.trim() || 1));
+
+    return addonIds
+      .map((addonId, index) => {
+        const matchedAddon = food.addOns?.find(
+          (addon) => Number(addon.addOnId) === Number(addonId)
+        );
+
+        if (!matchedAddon) return null;
+
+        const itemQty = item.menuqty ?? item.qty ?? 1;
+        const qty = addonQtys[index] || itemQty;
+
+        return {
+          ...matchedAddon,
+          qty,
+          total: matchedAddon.price * qty,
+        };
+      })
+      .filter(Boolean);
+  };
+
   const subtotal = useMemo(() => {
     return formattedItems.reduce((sum: number, item: any) => {
       const qty = item.menuqty ?? item.qty ?? 1;
-      const price = Number(item.price ?? item.menuprice ?? 0);
+      const basePrice = getBasePriceFromCatalog(item);
 
-      return sum + qty * price;
+      const addOnsTotal = getAddOnsFromCatalog(item).reduce(
+        (addOnSum: number, addon: any) =>
+          addOnSum + Number(addon.total ?? 0),
+        0
+      );
+
+      return sum + qty * basePrice + addOnsTotal;
     }, 0);
-  }, [formattedItems]);
+  }, [formattedItems, foodCatalog]);
 
   const serviceCharge = 0;
   const total = subtotal + serviceCharge;
@@ -218,9 +300,15 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
     const qty = item.menuqty ?? item.qty ?? 1;
 
-    const price = Number(item.price ?? item.menuprice ?? 0);
+    const basePrice = getBasePriceFromCatalog(item);
+    const mappedAddOns = getAddOnsFromCatalog(item);
 
-    const totalPrice = qty * price;
+    const addOnsTotal = mappedAddOns.reduce(
+      (sum: number, addon: any) => sum + addon.total,
+      0
+    );
+
+    const totalPrice = qty * basePrice + addOnsTotal;
 
     const variantName =
       item.variantName ??
@@ -229,13 +317,13 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
     const note = item.itemnote ?? item.note ?? '';
 
-    let addOnsText = '';
+    // let addOnsText = '';
 
-    if (item.selectedAddOns && item.selectedAddOns.length > 0) {
-      addOnsText = item.selectedAddOns
-        .map((addon: any) => addon.addOnName)
-        .join(', ');
-    }
+    // if (item.selectedAddOns && item.selectedAddOns.length > 0) {
+    //   addOnsText = item.selectedAddOns
+    //     .map((addon: any) => addon.addOnName)
+    //     .join(', ');
+    // }
 
     return (
       <View style={styles.itemCard}>
@@ -243,16 +331,20 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           <Text style={styles.itemName}>{itemName}</Text>
 
           <Text style={styles.itemMeta}>
-            Qty: {qty} × LKR {price}
+            Qty: {qty} × LKR {basePrice}
           </Text>
 
           {variantName ? (
             <Text style={styles.itemSubMeta}>Variant: {variantName}</Text>
           ) : null}
 
-          {addOnsText ? (
-            <Text style={styles.itemSubMeta}>Add-ons: {addOnsText}</Text>
-          ) : null}
+          {mappedAddOns.length > 0
+            ? mappedAddOns.map((addon: any) => (
+                <Text key={addon.addOnId} style={styles.itemSubMeta}>
+                  Add-on: {addon.addOnName} × {addon.qty} = LKR {addon.total}
+                </Text>
+              ))
+            : null}
 
           {note ? (
             <Text style={styles.itemSubMeta}>Note: {note}</Text>
@@ -270,8 +362,13 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#F05A22" />
-          <Text style={styles.loadingText}>Loading order details...</Text>
+          <Image
+            source={require('../../../assets/loading.gif')}
+            style={styles.loaderGif}
+            resizeMode="contain"
+          />
+
+          <Text style={styles.loadingText}>Loading</Text>
         </View>
       </SafeAreaView>
     );
@@ -366,19 +463,28 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
 
-          <Pressable
-            style={styles.statusButtonFull}
-            onPress={() =>
-              navigation.navigate('OrderStatus', {
-                orderId:
-                  routeOrderId ??
-                  (placedOrder?.id ? Number(placedOrder.id) : undefined),
-                tableName: tableDisplay,
-              })
-            }
-          >
-            <Text style={styles.primaryButtonText}>View order status</Text>
-          </Pressable>
+          <View style={styles.statusButtonRow}>
+            <Pressable
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.backButtonText}>Back</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.statusButtonFull}
+              onPress={() =>
+                navigation.navigate('OrderStatus', {
+                  orderId:
+                    routeOrderId ??
+                    (placedOrder?.id ? Number(placedOrder.id) : undefined),
+                  tableName: tableDisplay,
+                })
+              }
+            >
+              <Text style={styles.primaryButtonText}>View order status</Text>
+            </Pressable>
+          </View>
         </View>
 
         <Modal
@@ -632,7 +738,7 @@ const styles = StyleSheet.create({
   },
 
   statusButtonFull: {
-    width: '100%',
+    flex: 1,
     backgroundColor: '#F05A22',
     paddingVertical: 15,
     borderRadius: 12,
@@ -641,7 +747,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
     borderWidth: 1.5,
     borderColor: '#111827',
   },
@@ -653,7 +759,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: '#111827',
+    color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
   },
@@ -712,6 +818,33 @@ const styles = StyleSheet.create({
 
   deleteCancelButtonText: {
     color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  loaderGif: {
+    width: 100,
+    height: 100,
+  },
+
+  statusButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+
+  backButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backButtonText: {
+    color: '#111827',
     fontSize: 15,
     fontWeight: '700',
   },

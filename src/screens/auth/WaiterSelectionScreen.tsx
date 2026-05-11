@@ -66,11 +66,17 @@ export default function WaiterSelectionScreen({ navigation }: Props) {
   const filteredWaiters = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
 
-    if (!keyword) return waiters;
+    // initially show nothing
+    if (!keyword) return [];
 
-    return waiters.filter((waiter) =>
-      (waiter.email || waiter.name).toLowerCase().includes(keyword)
-    );
+    // only max 10 waiters
+    return waiters
+      .filter((waiter) =>
+        (waiter.email || waiter.name)
+          .toLowerCase()
+          .startsWith(keyword)
+      )
+      .slice(0, 10);
   }, [searchText, waiters]);
 
   const handleContinue = () => {
@@ -118,16 +124,6 @@ export default function WaiterSelectionScreen({ navigation }: Props) {
       </Pressable>
     );
   };
-
-  if (loadingWaiters) {
-    return (
-      <View style={styles.loadingContainer}>
-        <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color="#F05822" />
-        <Text style={styles.loadingText}>Loading waiters...</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -361,20 +357,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F4F4F4',
     overflow: 'hidden',
-  },
-
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#F4F4F4',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  loadingText: {
-    marginTop: 12,
-    color: '#6B7280',
-    fontSize: 15,
-    fontFamily: 'Inter',
   },
 
   logoContainer: {

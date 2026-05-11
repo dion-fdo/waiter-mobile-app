@@ -16,6 +16,7 @@ import OrderStatusScreen from '../screens/orders/OrderStatusScreen';
 import EditPlacedOrderScreen from '../screens/orders/EditPlacedOrderScreen';
 import CashierApprovalScreen from '../screens/orders/CashierApprovalScreen';
 import CustomerSelectionScreen from '../screens/customers/CustomerSelectionScreen';
+import NotepadScreen from '../screens/notes/NotepadScreen';
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -34,6 +35,10 @@ export type RootStackParamList = {
     tableId: number;
     tableName: string;
     tableStatus: 'free' | 'partially_occupied' | 'full';
+  };
+  Notepad: {
+    tableId: number;
+    tableName: string;
   };
 };
 
@@ -65,6 +70,7 @@ export default function AppNavigator() {
         <Stack.Screen name="OrderStatus" component={OrderStatusScreen} />
         <Stack.Screen name="EditPlacedOrder" component={EditPlacedOrderScreen} />
         <Stack.Screen name="CashierApproval" component={CashierApprovalScreen} />
+        <Stack.Screen name="Notepad" component={NotepadScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

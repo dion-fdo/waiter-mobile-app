@@ -7,6 +7,7 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
@@ -20,6 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'TableOrders'>;
 type TableOrder = {
   order_id: number;
   order_status: number;
+  order_source?: string;
 };
 
 function getStatusLabel(status: number) {
@@ -63,7 +65,8 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
       );
 
       const activeOrders = response.data.filter(
-        (order) => ![4, 5].includes(order.order_status)
+        (order) =>
+          ![4, 5].includes(order.order_status)
       );
 
       setOrders(activeOrders);
@@ -116,8 +119,13 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#F05822" />
-        <Text style={styles.loadingText}>Loading table orders...</Text>
+        <Image
+          source={require('../../../assets/loading.gif')}
+          style={styles.loaderGif}
+          resizeMode="contain"
+        />
+
+        <Text style={styles.loadingText}>Loading</Text>
       </View>
     );
   }
@@ -126,6 +134,21 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.topCard}>
+          <Pressable
+            style={styles.noteIconButton}
+            onPress={() =>
+              navigation.navigate('Notepad', {
+                tableId,
+                tableName,
+              })
+            }
+          >
+              <Image
+                source={require('../../../assets/notepad.png')}
+                style={styles.noteIconImage}
+              />
+          </Pressable>
+
           <Text style={styles.header}>{tableName}</Text>
           <Text style={styles.subHeader}>Current Orders</Text>
 
@@ -156,26 +179,47 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
         <FlatList
           data={orders}
           keyExtractor={(item) => String(item.order_id)}
-          renderItem={({ item }) => (
-            <Pressable
-              style={styles.orderCard}
-              onPress={() => handleOpenOrder(item.order_id)}
-            >
-              <View style={styles.orderLeft}>
-                <Text style={styles.orderId}>
-                  Order #{item.order_id}
-                </Text>
+          renderItem={({ item }) => {
+            const isWaiterOrder =
+              item.order_source === 'WAITER_APP';
 
-                <View style={styles.statusPill}>
-                  <Text style={styles.statusPillText}>
-                    {getStatusLabel(item.order_status)}
+            return (
+              <Pressable
+                disabled={!isWaiterOrder}
+                style={[
+                  styles.orderCard,
+                  !isWaiterOrder && styles.disabledOrderCard,
+                ]}
+                onPress={() => {
+                  if (!isWaiterOrder) return;
+
+                  handleOpenOrder(item.order_id);
+                }}
+              >
+                <View style={styles.orderLeft}>
+                  <Text style={styles.orderId}>
+                    Order #{item.order_id}
                   </Text>
-                </View>
-              </View>
 
-              <Text style={styles.viewText}>View</Text>
-            </Pressable>
-          )}
+                  <View style={styles.statusPill}>
+                    <Text style={styles.statusPillText}>
+                      {getStatusLabel(item.order_status)}
+                    </Text>
+                  </View>
+
+                  {!isWaiterOrder && (
+                    <Text style={styles.disabledOrderText}>
+                      Cashier Order
+                    </Text>
+                  )}
+                </View>
+
+                <Text style={styles.viewText}>
+                  {isWaiterOrder ? 'View' : 'Locked'}
+                </Text>
+              </Pressable>
+            );
+          }}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
@@ -400,5 +444,41 @@ const styles = StyleSheet.create({
     color: '#5a5a5a',
     fontSize: 16,
     fontWeight: '400',
+  },
+
+  disabledOrderCard: {
+    opacity: 0.4,
+    backgroundColor: '#ffffff',
+  },
+
+  disabledOrderText: {
+    fontSize: 12,
+    color: '#F05822',
+    fontWeight: '700',
+    marginTop: 6,
+  },
+
+  loaderGif: {
+    width: 100,
+    height: 100,
+  },
+
+  noteIconButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+
+  noteIconImage: {
+    width: 22,
+    height: 22,
+    resizeMode: 'contain',
   },
 });

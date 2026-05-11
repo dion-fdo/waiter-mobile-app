@@ -20,6 +20,7 @@ export type WaiterLoginResponse = {
   user: {
     id: number;
     waiter_id: number;
+    branch_id: number | null;
     is_waiter: number;
     firstname: string;
     lastname: string;

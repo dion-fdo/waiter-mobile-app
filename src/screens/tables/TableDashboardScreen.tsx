@@ -34,13 +34,13 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<TableFilter>('all');
   const { width, height } = useWindowDimensions();
   const {
+    selectedWaiter,
     setSelectedTable,
     startNewOrderSession,
     logout,
     ensureValidToken,
     selectedPersonCount,
     setSelectedPersonCount,
-    selectedWaiter,
   } = useAppContext();
 
   const [tables, setTables] = useState<RestaurantTable[]>([]);
@@ -135,7 +135,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const loadTables = async () => {
     try {
       const token = await ensureValidToken();
-      const data = await getTables(token || undefined);
+      const data = await getTables(token || undefined, selectedWaiter?.branchId);
       setTables(data);
     } catch (error: any) {
       Alert.alert('Failed to load tables', error?.message || 'Please try again');
@@ -254,14 +254,14 @@ export default function TableDashboardScreen({ navigation }: Props) {
         ? '#f0f0f0'
         : item.status === 'partially_occupied'
         ? '#ffe5bd'
-        : '#ffb4a7';
+        : '#ffd4c1';
 
     const cornerBg =
       item.status === 'free'
         ? '#767676'
         : item.status === 'partially_occupied'
         ? 'rgb(235, 185, 47)'
-        : '#831400';
+        : '#F05822';
 
     return (
       <Pressable
@@ -317,15 +317,16 @@ export default function TableDashboardScreen({ navigation }: Props) {
 
   if (loadingTables) {
     return (
-      <View
-        style={[
-          styles.container,
-          styles.loadingWrap,
-        ]}
-      >
+      <View style={[styles.container, styles.loadingWrap]}>
         <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color="#F05822" />
-        <Text style={styles.loadingText}>Loading tables...</Text>
+
+        <Image
+          source={require('../../../assets/loading.gif')}
+          style={styles.loaderGif}
+          resizeMode="contain"
+        />
+
+        <Text style={styles.loadingText}>Loading</Text>
       </View>
     );
   }
@@ -983,5 +984,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter',
     fontWeight: '700',
+  },
+
+  loaderGif: {
+    width: 100,
+    height: 100,
   },
 });

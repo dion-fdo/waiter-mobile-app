@@ -191,8 +191,13 @@ export default function CategoryScreen({ navigation }: Props) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#F05822" />
-          <Text style={styles.loadingText}>Loading categories...</Text>
+          <Image
+            source={require('../../../assets/loading.gif')}
+            style={styles.loaderGif}
+            resizeMode="contain"
+          />
+
+          <Text style={styles.loadingText}>Loading</Text>
         </View>
       </SafeAreaView>
     );
@@ -561,5 +566,10 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  loaderGif: {
+    width: 100,
+    height: 100,
   },
 });

@@ -52,6 +52,10 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
       setSelectedWaiter({
         id: String(response.user.id),
         waiterId: String(response.user.waiter_id),
+        branchId:
+          response.user.branch_id !== null && response.user.branch_id !== undefined
+            ? String(response.user.branch_id)
+            : undefined,
         email: response.user.email,
         name: response.user.email,
       });

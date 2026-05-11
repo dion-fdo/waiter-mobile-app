@@ -1,8 +1,8 @@
 export const ENV = {
   BASE_URL:
     process.env.EXPO_PUBLIC_BASE_URL?.trim() ||
-    //'https://cuisinedev.kernelencode.com',
-    'https://cuisine.kernelencode.com',
+    'https://cuisinedev.kernelencode.com',
+    //'https://cuisine.kernelencode.com',
 
   M2M_CLIENT_ID:
     process.env.EXPO_PUBLIC_M2M_CLIENT_ID?.trim() || '',

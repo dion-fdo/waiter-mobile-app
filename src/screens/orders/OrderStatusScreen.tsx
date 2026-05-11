@@ -1,15 +1,25 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  ActivityIndicator,
   Alert,
   Image,
+  Modal,
+  Vibration,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useAppContext } from '../../context/AppContext';
 import { getOrderDetails, OrderDetailsResponse } from '../../services/api/orderApi';
@@ -23,10 +33,26 @@ type StatusStep = {
   current: boolean;
 };
 
+type KitchenReminderState = {
+  orderId: number;
+  preparingStartedAt: number;
+  nextReminderAt: number;
+  confirmedReady: boolean;
+  popupPending: boolean;
+};
+
 const ORDER_PLACED_GIF = require('../../../assets/status/order-placed.gif');
 const PREPARING_GIF = require('../../../assets/status/preparing.gif');
 const READY_GIF = require('../../../assets/status/ready.gif');
 const SERVED_GIF = require('../../../assets/status/served.gif');
+
+const FIRST_REMINDER_MS = 1 * 60 * 1000;
+const REPEAT_REMINDER_MS = 30 * 1000;
+const AUTO_REFRESH_MS = 3000;
+
+function getReminderKey(orderId: number) {
+  return `kitchen_ready_reminder_order_${orderId}`;
+}
 
 function getCurrentStep(orderStatus: number): number {
   if (orderStatus === 1 || orderStatus === 6) return 1;
@@ -82,6 +108,14 @@ function getStatusGif(orderStatus: number) {
   }
 }
 
+function formatElapsed(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 export default function OrderStatusScreen({ navigation, route }: Props) {
   const routeOrderId = route.params?.orderId;
   const routeTableName = route.params?.tableName;
@@ -92,22 +126,35 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
   const [orderDetails, setOrderDetails] =
     useState<OrderDetailsResponse['data'] | null>(null);
 
-  useEffect(() => {
-    const loadOrderDetails = async () => {
-      const effectiveOrderId =
-        routeOrderId != null
-          ? routeOrderId
-          : placedOrder?.id
-          ? Number(placedOrder.id)
-          : null;
+  const [localReadyOrderIds, setLocalReadyOrderIds] = useState<number[]>([]);
+  const [kitchenModalVisible, setKitchenModalVisible] = useState(false);
+  const [elapsedPreparingMs, setElapsedPreparingMs] = useState(0);
 
+  const reminderStateRef = useRef<KitchenReminderState | null>(null);
+  const activeOrderIdRef = useRef<number | null>(null);
+
+  const effectiveOrderId =
+    routeOrderId != null
+      ? routeOrderId
+      : placedOrder?.id
+      ? Number(placedOrder.id)
+      : null;
+
+  useEffect(() => {
+    activeOrderIdRef.current = effectiveOrderId;
+  }, [effectiveOrderId]);
+
+  const loadOrderDetails = useCallback(
+    async (showLoader = false) => {
       if (effectiveOrderId == null) {
         setLoading(false);
         return;
       }
 
       try {
-        setLoading(true);
+        if (showLoader) {
+          setLoading(true);
+        }
 
         const token = await ensureValidToken();
 
@@ -118,19 +165,263 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
 
         setOrderDetails(response.data);
       } catch (error: any) {
-        Alert.alert(
-          'Failed to load order status',
-          error?.message || 'Please try again'
-        );
+        console.log('Failed to load order status', error);
       } finally {
         setLoading(false);
       }
+    },
+    [effectiveOrderId, ensureValidToken]
+  );
+
+  useEffect(() => {
+    loadOrderDetails(true);
+  }, [loadOrderDetails]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadOrderDetails(false);
+
+      const checkPendingPopup = async () => {
+        if (effectiveOrderId == null) return;
+
+        const saved = await AsyncStorage.getItem(getReminderKey(effectiveOrderId));
+        if (!saved) return;
+
+        const parsed: KitchenReminderState = JSON.parse(saved);
+        reminderStateRef.current = parsed;
+
+        if (!parsed.confirmedReady && parsed.popupPending) {
+          setKitchenModalVisible(true);
+        }
+      };
+
+      checkPendingPopup();
+    }, [effectiveOrderId, loadOrderDetails])
+  );
+
+  useEffect(() => {
+    if (effectiveOrderId == null) return;
+
+    const interval = setInterval(() => {
+      loadOrderDetails(false);
+    }, AUTO_REFRESH_MS);
+
+    return () => clearInterval(interval);
+  }, [effectiveOrderId, loadOrderDetails]);
+
+  const backendOrderStatus = orderDetails?.orderinfo?.status ?? 1;
+
+  const orderStatus =
+    effectiveOrderId != null &&
+    backendOrderStatus === 2 &&
+    localReadyOrderIds.includes(effectiveOrderId)
+      ? 3
+      : backendOrderStatus;
+
+  const saveReminderState = async (state: KitchenReminderState) => {
+    reminderStateRef.current = state;
+
+    await AsyncStorage.setItem(
+      getReminderKey(state.orderId),
+      JSON.stringify(state)
+    );
+  };
+
+  const clearReminderState = useCallback(async (orderId: number) => {
+    reminderStateRef.current = null;
+    setKitchenModalVisible(false);
+    setElapsedPreparingMs(0);
+
+    await AsyncStorage.removeItem(getReminderKey(orderId));
+  }, []);
+
+  const showKitchenReminder = useCallback(async () => {
+    setKitchenModalVisible(true);
+    Vibration.vibrate([0, 500, 300, 500]);
+  }, []);
+
+  useEffect(() => {
+    const prepareReminder = async () => {
+      if (effectiveOrderId == null) return;
+
+      if (
+        backendOrderStatus === 3 ||
+        backendOrderStatus === 4 ||
+        backendOrderStatus === 5
+      ) {
+        await clearReminderState(effectiveOrderId);
+        return;
+      }
+
+      if (backendOrderStatus !== 2) return;
+
+      if (localReadyOrderIds.includes(effectiveOrderId)) return;
+
+      const key = getReminderKey(effectiveOrderId);
+      const saved = await AsyncStorage.getItem(key);
+      const now = Date.now();
+
+      if (saved) {
+        const parsed: KitchenReminderState = JSON.parse(saved);
+        reminderStateRef.current = parsed;
+
+        if (parsed.confirmedReady) {
+          setLocalReadyOrderIds(prev =>
+            prev.includes(effectiveOrderId) ? prev : [...prev, effectiveOrderId]
+          );
+          return;
+        }
+
+        setElapsedPreparingMs(now - parsed.preparingStartedAt);
+
+        if (parsed.popupPending) {
+          await showKitchenReminder();
+          return;
+        }
+
+        if (now >= parsed.nextReminderAt) {
+          const updatedState: KitchenReminderState = {
+            ...parsed,
+            popupPending: true,
+            nextReminderAt: now + REPEAT_REMINDER_MS,
+          };
+
+          await saveReminderState(updatedState);
+          await showKitchenReminder();
+        }
+
+        return;
+      }
+
+      const newState: KitchenReminderState = {
+        orderId: effectiveOrderId,
+        preparingStartedAt: now,
+        nextReminderAt: now + FIRST_REMINDER_MS,
+        confirmedReady: false,
+        popupPending: false,
+      };
+
+      await saveReminderState(newState);
+      setElapsedPreparingMs(0);
     };
 
-    loadOrderDetails();
-  }, [routeOrderId, placedOrder?.id, ensureValidToken]);
+    prepareReminder();
+  }, [
+    effectiveOrderId,
+    backendOrderStatus,
+    localReadyOrderIds,
+    clearReminderState,
+    showKitchenReminder,
+  ]);
 
-  const orderStatus = orderDetails?.orderinfo?.status ?? 1;
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const state = reminderStateRef.current;
+      const currentOrderId = activeOrderIdRef.current;
+
+      if (!state || currentOrderId == null || state.orderId !== currentOrderId) return;
+      if (state.confirmedReady) return;
+
+      const now = Date.now();
+
+      setElapsedPreparingMs(now - state.preparingStartedAt);
+
+      if (state.popupPending && !kitchenModalVisible) {
+        await showKitchenReminder();
+        return;
+      }
+
+      if (now >= state.nextReminderAt && !kitchenModalVisible) {
+        const updatedState: KitchenReminderState = {
+          ...state,
+          popupPending: true,
+          nextReminderAt: now + REPEAT_REMINDER_MS,
+        };
+
+        await saveReminderState(updatedState);
+        await showKitchenReminder();
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [kitchenModalVisible, showKitchenReminder]);
+
+  const markOrderReady = async () => {
+    if (effectiveOrderId == null) return;
+
+    const currentState = reminderStateRef.current;
+
+    if (currentState) {
+      await saveReminderState({
+        ...currentState,
+        confirmedReady: true,
+        popupPending: false,
+      });
+    }
+
+    setLocalReadyOrderIds(prev =>
+      prev.includes(effectiveOrderId) ? prev : [...prev, effectiveOrderId]
+    );
+
+    setKitchenModalVisible(false);
+  };
+
+  const handleKitchenReadyYes = () => {
+    Alert.alert(
+      'Confirm Ready',
+      'Are you sure this order is ready?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes',
+          onPress: markOrderReady,
+        },
+      ]
+    );
+  };
+
+  const handleOrderPreparedPress = () => {
+    Alert.alert(
+      'Mark Order as Ready',
+      'Has the kitchen confirmed that this order is prepared and ready?',
+      [
+        {
+          text: 'No',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes',
+          onPress: markOrderReady,
+        },
+      ]
+    );
+  };
+
+  const handleKitchenReadyNo = async () => {
+    const currentState = reminderStateRef.current;
+
+    if (!currentState) {
+      setKitchenModalVisible(false);
+      return;
+    }
+
+    const updatedState: KitchenReminderState = {
+      ...currentState,
+      popupPending: false,
+      nextReminderAt: Date.now() + REPEAT_REMINDER_MS,
+    };
+
+    await saveReminderState(updatedState);
+    setKitchenModalVisible(false);
+  };
+
+  const handleKitchenBack = () => {
+    setKitchenModalVisible(false);
+    navigation.goBack();
+  };
 
   const steps = useMemo(() => {
     return buildSteps(orderStatus);
@@ -171,8 +462,13 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#F05822" />
-          <Text style={styles.loadingText}>Loading order status...</Text>
+          <Image
+            source={require('../../../assets/loading.gif')}
+            style={styles.loaderGif}
+            resizeMode="contain"
+          />
+
+          <Text style={styles.loadingText}>Loading</Text>
         </View>
       </SafeAreaView>
     );
@@ -197,7 +493,15 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
               </Text>
             </View>
 
-            <Text style={styles.topMetaText}>{statusText}</Text>
+            <View style={styles.statusRightWrap}>
+              <Text style={styles.topMetaText}>{statusText}</Text>
+
+              {backendOrderStatus === 2 && orderStatus === 2 ? (
+                <Text style={styles.timerText}>
+                  Preparing: {formatElapsed(elapsedPreparingMs)}
+                </Text>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -252,6 +556,15 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
           </View>
         </View>
 
+        {orderStatus === 2 ? (
+          <Pressable
+            style={styles.readyButton}
+            onPress={handleOrderPreparedPress}
+          >
+            <Text style={styles.readyButtonText}>Order Prepared</Text>
+          </Pressable>
+        ) : null}
+
         <View style={styles.buttonRow}>
           <Pressable
             style={styles.secondaryButton}
@@ -274,6 +587,46 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
             <Text style={styles.buttonText}>View Order</Text>
           </Pressable>
         </View>
+
+        <Modal
+          visible={kitchenModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={handleKitchenBack}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Kitchen check needed</Text>
+
+              <Text style={styles.modalMessage}>
+                Please check with the kitchen to confirm whether this order is ready.
+              </Text>
+
+              <View style={styles.modalButtonRow}>
+                <Pressable
+                  style={styles.modalBackButton}
+                  onPress={handleKitchenBack}
+                >
+                  <Text style={styles.modalBackButtonText}>Back</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.modalSecondaryButton}
+                  onPress={handleKitchenReadyNo}
+                >
+                  <Text style={styles.modalSecondaryButtonText}>Not yet</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.modalPrimaryButton}
+                  onPress={handleKitchenReadyYes}
+                >
+                  <Text style={styles.modalPrimaryButtonText}>Yes, ready</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -338,6 +691,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
+  },
+
+  statusRightWrap: {
+    alignItems: 'flex-end',
+  },
+
+  timerText: {
+    color: '#FFF7ED',
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   contentArea: {
@@ -430,6 +793,20 @@ const styles = StyleSheet.create({
     height: 220,
   },
 
+  readyButton: {
+    backgroundColor: '#16A34A',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  readyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
   buttonRow: {
     flexDirection: 'row',
     gap: 12,
@@ -464,5 +841,94 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  loaderGif: {
+    width: 100,
+    height: 100,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+  },
+
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+
+  modalMessage: {
+    fontSize: 15,
+    color: '#4B5563',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+
+  modalButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  modalBackButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+
+  modalBackButtonText: {
+    color: '#111827',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  modalSecondaryButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  modalSecondaryButtonText: {
+    color: '#111827',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  modalPrimaryButton: {
+    flex: 1,
+    backgroundColor: '#F05822',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  modalPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

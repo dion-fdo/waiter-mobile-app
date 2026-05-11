@@ -396,6 +396,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Waiter not selected');
       }
 
+      if (!selectedWaiter?.branchId) {
+        throw new Error('Waiter branch not selected');
+      }
+
       if (!selectedCustomer?.id) {
         throw new Error('Customer not selected');
       }
@@ -412,6 +416,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         customer_id: Number(selectedCustomer.id),
         order_date: today,
         waiter_id: Number(selectedWaiter.waiterId),
+        branch_id: Number(selectedWaiter.branchId),
         tableid: Number(selectedTable.id),
         room_id: null,
         reservation_id: null,
@@ -422,11 +427,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           food_id: Number(item.menuId),
           variant_id: Number(item.variantId),
           qty: item.qty,
-          price: item.price,
+          
+          price:
+            item.selectedAddOns?.length
+              ? item.price -
+                item.selectedAddOns.reduce(
+                  (sum, addOn) => sum + addOn.price * addOn.qty,
+                  0
+                )
+              : item.price,
+              
           addonsid:
             item.selectedAddOns?.map((addOn) => addOn.addOnId).join(',') ?? '',
           addonsqty:
-            item.selectedAddOns?.map((addOn) => String(addOn.qty)).join(',') ?? '',
+            item.selectedAddOns
+              ?.map((a) => String(a.qty * item.qty))
+              .join(',') ?? '',
           itemnote: item.note ?? '',
           isgroup: 0,
         })),
@@ -572,11 +588,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           food_id: Number(item.menuId),
           variant_id: Number(item.variantId ?? 0),
           qty: item.qty,
-          price: item.price,
+          
+          price:
+            item.selectedAddOns?.length
+              ? item.price -
+                item.selectedAddOns.reduce(
+                  (sum, addOn) => sum + addOn.price * addOn.qty,
+                  0
+                )
+              : item.price,
+              
           addonsid:
             item.selectedAddOns?.map((addOn) => addOn.addOnId).join(',') ?? '',
           addonsqty:
-            item.selectedAddOns?.map((addOn) => String(addOn.qty)).join(',') ?? '',
+            item.selectedAddOns
+              ?.map((a) => String(a.qty * item.qty))
+              .join(',') ?? '',
           itemnote: item.note ?? '',
           isgroup: 0,
         })),
