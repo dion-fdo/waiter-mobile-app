@@ -30,7 +30,14 @@
     "plugins": [
       "expo-font",
       "expo-video",
-      "expo-audio"
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/notification/notification_sound.wav"
+          ]
+        }
+      ]
     ],
     "extra": {
       "eas": {
