@@ -17,6 +17,7 @@ import EditPlacedOrderScreen from '../screens/orders/EditPlacedOrderScreen';
 import CashierApprovalScreen from '../screens/orders/CashierApprovalScreen';
 import CustomerSelectionScreen from '../screens/customers/CustomerSelectionScreen';
 import NotepadScreen from '../screens/notes/NotepadScreen';
+import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -40,6 +41,7 @@ export type RootStackParamList = {
     tableId: number;
     tableName: string;
   };
+  Notifications: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -71,6 +73,7 @@ export default function AppNavigator() {
         <Stack.Screen name="EditPlacedOrder" component={EditPlacedOrderScreen} />
         <Stack.Screen name="CashierApproval" component={CashierApprovalScreen} />
         <Stack.Screen name="Notepad" component={NotepadScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

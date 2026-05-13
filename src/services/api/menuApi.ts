@@ -1,6 +1,5 @@
 import { apiClient } from './client';
 import { MenuItem } from '../../types/menuItem';
-
 import { ENV } from '../../config/env';
 
 type BackendVariant = {
@@ -27,6 +26,8 @@ type BackendFoodItem = {
   product_image?: string;
   category_id?: number;
   category_name?: string;
+  branch_id?: number | string | null;
+  BranchID?: number | string | null;
   component?: string;
   itemnotes?: string;
   variant?: BackendVariant[];
@@ -44,8 +45,15 @@ type SearchResponse = {
   foods?: BackendFoodItem[];
 };
 
-function mapFoodItem(item: BackendFoodItem): MenuItem {
+function isSameBranch(item: BackendFoodItem, branchId?: string) {
+  if (!branchId) return true;
 
+  const itemBranchId = item.branch_id ?? item.BranchID;
+
+  return String(itemBranchId) === String(branchId);
+}
+
+function mapFoodItem(item: BackendFoodItem): MenuItem {
   const variants =
     item.variant?.map((variant) => ({
       variantId: String(variant.variantid ?? variant.variant_id ?? ''),
@@ -63,9 +71,6 @@ function mapFoodItem(item: BackendFoodItem): MenuItem {
   return {
     id: String(item.id),
     name: item.name,
-    // image: item.product_image
-    //   ? encodeURI(`https://cuisinedev.kernelencode.com/${item.product_image}`)
-    //   : undefined,
 
     image: item.product_image
       ? encodeURI(`${ENV.BASE_URL}/${item.product_image}`)
@@ -83,7 +88,8 @@ function mapFoodItem(item: BackendFoodItem): MenuItem {
 
 export async function getFoodsByCategory(
   categoryId: string,
-  token?: string
+  token?: string,
+  branchId?: string
 ): Promise<MenuItem[]> {
   const headers = token
     ? { Authorization: `Bearer ${token}` }
@@ -94,12 +100,15 @@ export async function getFoodsByCategory(
     { headers }
   );
 
-  return response.data.map(mapFoodItem);
+  return response.data
+    .filter((item) => isSameBranch(item, branchId))
+    .map(mapFoodItem);
 }
 
 export async function searchFoods(
   keyword: string,
-  token?: string
+  token?: string,
+  branchId?: string
 ): Promise<MenuItem[]> {
   const headers = token
     ? { Authorization: `Bearer ${token}` }
@@ -111,5 +120,8 @@ export async function searchFoods(
   );
 
   const items = response.data ?? response.foods ?? [];
-  return items.map(mapFoodItem);
+
+  return items
+    .filter((item) => isSameBranch(item, branchId))
+    .map(mapFoodItem);
 }

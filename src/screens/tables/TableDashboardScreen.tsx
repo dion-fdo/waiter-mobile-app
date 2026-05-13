@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,9 +23,41 @@ import { RestaurantTable } from '../../types/table';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 
+import { useEventListener } from 'expo';
+import { useVideoPlayer, VideoView } from 'expo-video';
+
+import { useAudioPlayer } from 'expo-audio';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'TableDashboard'>;
 
 type TableFilter = 'all' | 'free' | 'partially_occupied' | 'full';
+
+type KitchenNotification = {
+  id: string;
+  orderId: number;
+  tableName: string;
+  message: string;
+  updatedAt: number;
+};
+
+type KitchenReminderState = {
+  orderId: number;
+  preparingStartedAt: number;
+  nextReminderAt: number;
+  confirmedReady: boolean;
+  popupPending: boolean;
+};
+
+const KITCHEN_NOTIFICATIONS_KEY = 'kitchen_check_notifications';
+
+const FIRST_REMINDER_MS = 1 * 60 * 1000;
+const REPEAT_REMINDER_MS = 30 * 1000;
+
+function getReminderKey(orderId: number) {
+  return `kitchen_ready_reminder_order_${orderId}`;
+}
 
 const DESIGN_WIDTH = 360;
 const DESIGN_HEIGHT = 772;
@@ -47,12 +79,52 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const [loadingTables, setLoadingTables] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const previousTableStatusesRef = useRef<Record<string, RestaurantTable['status']>>({});
+  const hasLoadedTablesOnceRef = useRef(false);
+
+  const [transitioningFullTableIds, setTransitioningFullTableIds] = useState<
+    Record<string, boolean>
+  >({});
+
   const [personCountModalVisible, setPersonCountModalVisible] = useState(false);
   const [pendingTable, setPendingTable] = useState<RestaurantTable | null>(null);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
   const personSheetAnim = useState(new Animated.Value(320))[0];
   const logoutSheetAnim = useState(new Animated.Value(320))[0];
+
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  const notificationPlayer = useAudioPlayer(
+    require('../../../assets/notification/notification-sound.mp3')
+  );
+
+  const playNotificationSound = useCallback(() => {
+    try {
+      notificationPlayer.seekTo(0);
+      notificationPlayer.play();
+    } catch (error) {
+      console.log('Failed to play notification sound', error);
+    }
+  }, [notificationPlayer]);
+
+  const loadNotificationCount = useCallback(async () => {
+    const saved = await AsyncStorage.getItem(KITCHEN_NOTIFICATIONS_KEY);
+    const parsed: KitchenNotification[] = saved ? JSON.parse(saved) : [];
+    setNotificationCount(parsed.length);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadNotificationCount();
+
+      const interval = setInterval(() => {
+        loadNotificationCount();
+      }, 1500);
+
+      return () => clearInterval(interval);
+    }, [loadNotificationCount])
+  );
 
   const scaleW = width / DESIGN_WIDTH;
   const scaleH = height / DESIGN_HEIGHT;
@@ -132,37 +204,224 @@ export default function TableDashboardScreen({ navigation }: Props) {
     setSelectedPersonCount(Math.min(maxAllowed, selectedPersonCount + 1));
   };
 
-  const loadTables = async () => {
+  const addOrUpdateKitchenNotification = useCallback(
+    async (orderId: number, tableName: string) => {
+      const saved = await AsyncStorage.getItem(KITCHEN_NOTIFICATIONS_KEY);
+      const existing: KitchenNotification[] = saved ? JSON.parse(saved) : [];
+
+      const notificationId = `order_${orderId}`;
+
+      const nextNotification: KitchenNotification = {
+        id: notificationId,
+        orderId,
+        tableName,
+        message: `Check order #${orderId} on ${tableName}`,
+        updatedAt: Date.now(),
+      };
+
+      const updated = [
+        nextNotification,
+        ...existing.filter((item) => item.id !== notificationId),
+      ];
+
+      await AsyncStorage.setItem(
+        KITCHEN_NOTIFICATIONS_KEY,
+        JSON.stringify(updated)
+      );
+
+      setNotificationCount(updated.length);
+      playNotificationSound();
+    },
+    [playNotificationSound],
+  );
+
+  const removeKitchenNotification = useCallback(async (orderId: number) => {
+    const saved = await AsyncStorage.getItem(KITCHEN_NOTIFICATIONS_KEY);
+    const existing: KitchenNotification[] = saved ? JSON.parse(saved) : [];
+
+    const updated = existing.filter((item) => item.id !== `order_${orderId}`);
+
+    await AsyncStorage.setItem(
+      KITCHEN_NOTIFICATIONS_KEY,
+      JSON.stringify(updated)
+    );
+
+    setNotificationCount(updated.length);
+  }, []);
+
+  const syncKitchenRemindersFromTables = useCallback(
+    async (tablesData: RestaurantTable[]) => {
+      const token = await ensureValidToken();
+      const now = Date.now();
+
+      await Promise.all(
+        tablesData.map(async (table) => {
+          try {
+            const activeOrders = await getActiveOrdersByTable(
+              Number(table.id),
+              token || undefined,
+              selectedWaiter?.branchId
+            );
+
+            await Promise.all(
+              activeOrders.data.map(async (order) => {
+                const orderId = order.order_id;
+                const tableName = table.name ?? `Table ${table.number}`;
+                const reminderKey = getReminderKey(orderId);
+
+                if ([3, 4, 5].includes(order.order_status)) {
+                  await AsyncStorage.removeItem(reminderKey);
+                  await removeKitchenNotification(orderId);
+                  return;
+                }
+
+                if (order.order_status !== 2) return;
+
+                const saved = await AsyncStorage.getItem(reminderKey);
+
+                if (!saved) {
+                  const newState: KitchenReminderState = {
+                    orderId,
+                    preparingStartedAt: now,
+                    nextReminderAt: now + FIRST_REMINDER_MS,
+                    confirmedReady: false,
+                    popupPending: false,
+                  };
+
+                  await AsyncStorage.setItem(
+                    reminderKey,
+                    JSON.stringify(newState)
+                  );
+
+                  return;
+                }
+
+                const parsed: KitchenReminderState = JSON.parse(saved);
+
+                if (parsed.confirmedReady) return;
+
+                if (
+                  now >= parsed.nextReminderAt &&
+                  !parsed.popupPending
+                ) {
+                  const updatedState: KitchenReminderState = {
+                    ...parsed,
+                    popupPending: true,
+                    nextReminderAt: now + REPEAT_REMINDER_MS,
+                  };
+
+                  await AsyncStorage.setItem(
+                    reminderKey,
+                    JSON.stringify(updatedState)
+                  );
+
+                  await addOrUpdateKitchenNotification(orderId, tableName);
+                }
+              })
+            );
+          } catch (error: any) {
+            const message = error?.message || '';
+
+            if (
+              message.toLowerCase().includes('active order not found') ||
+              message.toLowerCase().includes('404')
+            ) {
+              return;
+            }
+
+            console.log('Failed to sync reminders for table', table.id, error);
+          }
+        })
+      );
+
+      await loadNotificationCount();
+    },
+    [
+      ensureValidToken,
+      selectedWaiter?.branchId,
+      addOrUpdateKitchenNotification,
+      removeKitchenNotification,
+      loadNotificationCount,
+    ]
+  );
+
+  const loadTables = useCallback(async () => {
     try {
       const token = await ensureValidToken();
       const data = await getTables(token || undefined, selectedWaiter?.branchId);
+
+      const previousStatuses = previousTableStatusesRef.current;
+      const nextStatuses: Record<string, RestaurantTable['status']> = {};
+      const newlyFullTableIds: string[] = [];
+
+      data.forEach((table) => {
+        nextStatuses[table.id] = table.status;
+
+        const previousStatus = previousStatuses[table.id];
+
+        if (
+          hasLoadedTablesOnceRef.current &&
+          previousStatus === 'partially_occupied' &&
+          table.status === 'full'
+        ) {
+          newlyFullTableIds.push(table.id);
+        }
+      });
+
+      previousTableStatusesRef.current = nextStatuses;
+      hasLoadedTablesOnceRef.current = true;
+
+      if (newlyFullTableIds.length > 0) {
+        setTransitioningFullTableIds((prev) => {
+          const updated = { ...prev };
+
+          newlyFullTableIds.forEach((id) => {
+            updated[id] = true;
+          });
+
+          return updated;
+        });
+      }
+
       setTables(data);
+      await syncKitchenRemindersFromTables(data);
     } catch (error: any) {
       Alert.alert('Failed to load tables', error?.message || 'Please try again');
     }
-  };
+  }, [ensureValidToken, selectedWaiter?.branchId, syncKitchenRemindersFromTables]);
 
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
+      let intervalId: ReturnType<typeof setInterval>;
 
-      const refreshTables = async () => {
+      const refreshTables = async (showLoader = false) => {
         try {
-          setLoadingTables(true);
+          if (showLoader) {
+            setLoadingTables(true);
+          }
+
           await loadTables();
         } finally {
-          if (isActive) {
+          if (isActive && showLoader) {
             setLoadingTables(false);
           }
         }
       };
 
-      refreshTables();
+      refreshTables(true);
+
+      intervalId = setInterval(() => {
+        if (isActive) {
+          refreshTables(false);
+        }
+      }, 1500);
 
       return () => {
         isActive = false;
+        clearInterval(intervalId);
       };
-    }, [])
+    }, [loadTables])
   );
 
   const getMaxAllowedPeople = (table: RestaurantTable) => {
@@ -301,15 +560,30 @@ export default function TableDashboardScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        <Image
-          source={getTableIcon(item.status)}
-          style={{
-            width: 85 * scale,
-            height: 85 * scaleH,
-            marginTop: 13 * scaleH,
-          }}
-          resizeMode="contain"
-        />
+        {transitioningFullTableIds[item.id] ? (
+          <FullTableTransitionVideo
+            width={85 * scale}
+            height={85 * scaleH}
+            marginTop={13 * scaleH}
+            onFinished={() => {
+              setTransitioningFullTableIds((prev) => {
+                const updated = { ...prev };
+                delete updated[item.id];
+                return updated;
+              });
+            }}
+          />
+        ) : (
+          <Image
+            source={getTableIcon(item.status)}
+            style={{
+              width: 85 * scale,
+              height: 85 * scaleH,
+              marginTop: 13 * scaleH,
+            }}
+            resizeMode="contain"
+          />
+        )}
       </Pressable>
     );
   };
@@ -383,6 +657,28 @@ export default function TableDashboardScreen({ navigation }: Props) {
               Your Stats
             </Text>
           </Pressable> */}
+
+          <Pressable
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <Image
+              source={
+                notificationCount > 0
+                  ? require('../../../assets/notification/notification-gif.gif')
+                  : require('../../../assets/notification/notification.png')
+              }
+              style={styles.notificationIconImage}
+            />
+
+            {notificationCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {notificationCount}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
 
           <Pressable style={styles.headerAction} onPress={handleLogout}>
             <Text
@@ -693,6 +989,44 @@ export default function TableDashboardScreen({ navigation }: Props) {
   );
 }
 
+type FullTableTransitionVideoProps = {
+  width: number;
+  height: number;
+  marginTop: number;
+  onFinished: () => void;
+};
+
+function FullTableTransitionVideo({
+  width,
+  height,
+  marginTop,
+  onFinished,
+}: FullTableTransitionVideoProps) {
+  const player = useVideoPlayer(
+    require('../../../assets/tables/table-full-transition.mp4'),
+    (player) => {
+      player.loop = false;
+      player.muted = true;
+      player.play();
+    }
+  );
+
+  useEventListener(player, 'playToEnd', onFinished);
+
+  return (
+    <VideoView
+      player={player}
+      nativeControls={false}
+      contentFit="contain"
+      style={{
+        width,
+        height,
+        marginTop,
+      }}
+    />
+  );
+}
+
 type BottomTabProps = {
   label: string;
   active: boolean;
@@ -989,5 +1323,44 @@ const styles = StyleSheet.create({
   loaderGif: {
     width: 100,
     height: 100,
+  },
+
+  notificationButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgb(255, 255, 255)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 0,
+  },
+
+  notificationIcon: {
+    fontSize: 18,
+  },
+
+  notificationBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#ffd6c2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+
+  notificationBadgeText: {
+    color: '#000000',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  notificationIconImage: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
   },
 });

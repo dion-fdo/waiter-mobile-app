@@ -1,5 +1,9 @@
 import { apiClient } from './client';
 
+function buildBranchQuery(branchId?: string) {
+  return branchId ? `?branch_id=${encodeURIComponent(branchId)}` : '';
+}
+
 export type OrderItemPayload = {
   food_id: number;
   variant_id: number;
@@ -104,14 +108,15 @@ export type OrderDetailsResponse = {
 
 export async function getOrderDetails(
   orderId: number,
-  token?: string
+  token?: string,
+  branchId?: string
 ) {
   const headers = token
     ? { Authorization: `Bearer ${token}` }
     : undefined;
 
   return apiClient.get<OrderDetailsResponse>(
-    `/api/order_details/${orderId}`,
+    `/api/order_details/${orderId}${buildBranchQuery(branchId)}`,
     { headers }
   );
 }
@@ -168,14 +173,15 @@ export type ActiveTableOrderResponse = {
 
 export async function getActiveOrdersByTable(
   tableId: number,
-  token?: string
+  token?: string,
+  branchId?: string
 ) {
   const headers = token
     ? { Authorization: `Bearer ${token}` }
     : undefined;
 
   return apiClient.get<ActiveTableOrderResponse>(
-    `/api/order_details/table/${tableId}`,
+    `/api/order_details/table/${tableId}${buildBranchQuery(branchId)}`,
     { headers }
   );
 }

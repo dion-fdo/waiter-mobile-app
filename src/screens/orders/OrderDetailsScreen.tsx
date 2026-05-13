@@ -21,6 +21,8 @@ import { deleteOrder, getOrderDetails } from '../../services/api/orderApi';
 import { searchFoods } from '../../services/api/menuApi';
 import { MenuItem } from '../../types/menuItem';
 
+import { useFocusEffect } from '@react-navigation/native';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
 export default function OrderDetailsScreen({ navigation, route }: Props) {
@@ -95,18 +97,30 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
       setOrderDetails(details);
 
-      const foods = await searchFoods('', token || undefined);
+      const foods = await searchFoods(
+        '',
+        token || undefined,
+        selectedWaiter?.branchId
+      );
       setFoodCatalog(foods);
     } catch (error) {
       console.error('Failed to load order details', error);
     } finally {
       setLoading(false);
     }
-  }, [routeOrderId, placedOrder?.id, ensureValidToken]);
+  }, [routeOrderId, placedOrder?.id, ensureValidToken, selectedWaiter?.branchId]);
 
-  useEffect(() => {
-    fetchOrderDetails();
-  }, [fetchOrderDetails]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchOrderDetails();
+
+      const interval = setInterval(() => {
+        fetchOrderDetails();
+      }, 1500);
+
+      return () => clearInterval(interval);
+    }, [fetchOrderDetails])
+  );
 
   const formattedItems = useMemo(() => {
     if (orderDetails?.itemsinfo) {

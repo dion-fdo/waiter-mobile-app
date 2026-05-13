@@ -47,6 +47,7 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
   const { tableId, tableName, tableStatus } = route.params;
   const {
     ensureValidToken,
+    selectedWaiter,
     setSelectedTable,
     startNewOrderSession,
     setSelectedPersonCount,
@@ -61,7 +62,8 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
       const token = await ensureValidToken();
       const response = await getActiveOrdersByTable(
         tableId,
-        token || undefined
+        token || undefined,
+        selectedWaiter?.branchId
       );
 
       const activeOrders = response.data.filter(
@@ -88,7 +90,7 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
       } finally {
         setLoading(false);
       }
-  }, [tableId, ensureValidToken]);
+  }, [tableId, ensureValidToken, selectedWaiter?.branchId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -470,7 +472,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(255, 225, 202, 0.32)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,

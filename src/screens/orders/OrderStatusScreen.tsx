@@ -41,6 +41,16 @@ type KitchenReminderState = {
   popupPending: boolean;
 };
 
+type KitchenNotification = {
+  id: string;
+  orderId: number;
+  tableName: string;
+  message: string;
+  updatedAt: number;
+};
+
+const KITCHEN_NOTIFICATIONS_KEY = 'kitchen_check_notifications';
+
 const ORDER_PLACED_GIF = require('../../../assets/status/order-placed.gif');
 const PREPARING_GIF = require('../../../assets/status/preparing.gif');
 const READY_GIF = require('../../../assets/status/ready.gif');
@@ -132,6 +142,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
 
   const reminderStateRef = useRef<KitchenReminderState | null>(null);
   const activeOrderIdRef = useRef<number | null>(null);
+  const kitchenModalVisibleRef = useRef(false);
 
   const effectiveOrderId =
     routeOrderId != null
@@ -143,6 +154,10 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
   useEffect(() => {
     activeOrderIdRef.current = effectiveOrderId;
   }, [effectiveOrderId]);
+
+  useEffect(() => {
+    kitchenModalVisibleRef.current = kitchenModalVisible;
+  }, [kitchenModalVisible]);
 
   const loadOrderDetails = useCallback(
     async (showLoader = false) => {
@@ -160,7 +175,8 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
 
         const response = await getOrderDetails(
           effectiveOrderId,
-          token || undefined
+          token || undefined,
+          selectedWaiter?.branchId
         );
 
         setOrderDetails(response.data);
@@ -170,7 +186,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
         setLoading(false);
       }
     },
-    [effectiveOrderId, ensureValidToken]
+    [effectiveOrderId, ensureValidToken, selectedWaiter?.branchId]
   );
 
   useEffect(() => {
@@ -235,10 +251,58 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     await AsyncStorage.removeItem(getReminderKey(orderId));
   }, []);
 
+  const addOrUpdateKitchenNotification = async () => {
+    if (effectiveOrderId == null) return;
+
+    const saved = await AsyncStorage.getItem(KITCHEN_NOTIFICATIONS_KEY);
+    const existing: KitchenNotification[] = saved ? JSON.parse(saved) : [];
+
+    const notificationId = `order_${effectiveOrderId}`;
+    const message = `Check order #${effectiveOrderId} on ${tableDisplay}`;
+
+    const nextNotification: KitchenNotification = {
+      id: notificationId,
+      orderId: effectiveOrderId,
+      tableName: tableDisplay,
+      message,
+      updatedAt: Date.now(),
+    };
+
+    const updated = [
+      nextNotification,
+      ...existing.filter((item) => item.id !== notificationId),
+    ];
+
+    await AsyncStorage.setItem(
+      KITCHEN_NOTIFICATIONS_KEY,
+      JSON.stringify(updated)
+    );
+  };
+
+  const removeKitchenNotification = async () => {
+    if (effectiveOrderId == null) return;
+
+    const saved = await AsyncStorage.getItem(KITCHEN_NOTIFICATIONS_KEY);
+    const existing: KitchenNotification[] = saved ? JSON.parse(saved) : [];
+
+    const updated = existing.filter(
+      (item) => item.id !== `order_${effectiveOrderId}`
+    );
+
+    await AsyncStorage.setItem(
+      KITCHEN_NOTIFICATIONS_KEY,
+      JSON.stringify(updated)
+    );
+  };
+
   const showKitchenReminder = useCallback(async () => {
+    await addOrUpdateKitchenNotification();
+
+    if (kitchenModalVisibleRef.current) return;
+
     setKitchenModalVisible(true);
     Vibration.vibrate([0, 500, 300, 500]);
-  }, []);
+  }, [addOrUpdateKitchenNotification]);
 
   useEffect(() => {
     const prepareReminder = async () => {
@@ -250,6 +314,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
         backendOrderStatus === 5
       ) {
         await clearReminderState(effectiveOrderId);
+        await removeKitchenNotification();
         return;
       }
 
@@ -275,11 +340,13 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
         setElapsedPreparingMs(now - parsed.preparingStartedAt);
 
         if (parsed.popupPending) {
-          await showKitchenReminder();
+          if (!kitchenModalVisibleRef.current) {
+            await showKitchenReminder();
+          }
           return;
         }
 
-        if (now >= parsed.nextReminderAt) {
+        if (now >= parsed.nextReminderAt && !parsed.popupPending) {
           const updatedState: KitchenReminderState = {
             ...parsed,
             popupPending: true,
@@ -326,12 +393,12 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
 
       setElapsedPreparingMs(now - state.preparingStartedAt);
 
-      if (state.popupPending && !kitchenModalVisible) {
+      if (state.popupPending && !kitchenModalVisibleRef.current) {
         await showKitchenReminder();
         return;
       }
 
-      if (now >= state.nextReminderAt && !kitchenModalVisible) {
+      if (now >= state.nextReminderAt && !kitchenModalVisibleRef.current) {
         const updatedState: KitchenReminderState = {
           ...state,
           popupPending: true,
@@ -344,7 +411,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [kitchenModalVisible, showKitchenReminder]);
+  }, [showKitchenReminder]);
 
   const markOrderReady = async () => {
     if (effectiveOrderId == null) return;
@@ -362,7 +429,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     setLocalReadyOrderIds(prev =>
       prev.includes(effectiveOrderId) ? prev : [...prev, effectiveOrderId]
     );
-
+    await removeKitchenNotification();
     setKitchenModalVisible(false);
   };
 
@@ -404,6 +471,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     const currentState = reminderStateRef.current;
 
     if (!currentState) {
+      await removeKitchenNotification();
       setKitchenModalVisible(false);
       return;
     }
@@ -415,6 +483,9 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     };
 
     await saveReminderState(updatedState);
+
+    await removeKitchenNotification();
+
     setKitchenModalVisible(false);
   };
 
