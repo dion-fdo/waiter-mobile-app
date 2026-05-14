@@ -30,7 +30,7 @@ import { useAudioPlayer } from 'expo-audio';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import * as Notifications from 'expo-notifications';
+//import * as Notifications from 'expo-notifications';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TableDashboard'>;
 
@@ -131,24 +131,24 @@ export default function TableDashboardScreen({ navigation }: Props) {
     }, [loadNotificationCount])
   );
 
-  useEffect(() => {
-    const setupNotificationChannel = async () => {
-      await Notifications.requestPermissionsAsync();
+  // useEffect(() => {
+  //   const setupNotificationChannel = async () => {
+  //     await Notifications.requestPermissionsAsync();
 
-      await Notifications.setNotificationChannelAsync(
-        KITCHEN_NOTIFICATION_CHANNEL_ID,
-        {
-          name: 'Kitchen Check Alerts',
-          importance: Notifications.AndroidImportance.MAX,
-          sound: KITCHEN_NOTIFICATION_SOUND,
-          vibrationPattern: [0, 500, 300, 500],
-          enableVibrate: true,
-        }
-      );
-    };
+  //     await Notifications.setNotificationChannelAsync(
+  //       KITCHEN_NOTIFICATION_CHANNEL_ID,
+  //       {
+  //         name: 'Kitchen Check Alerts',
+  //         importance: Notifications.AndroidImportance.MAX,
+  //         sound: KITCHEN_NOTIFICATION_SOUND,
+  //         vibrationPattern: [0, 500, 300, 500],
+  //         enableVibrate: true,
+  //       }
+  //     );
+  //   };
 
-    setupNotificationChannel();
-  }, []);
+  //   setupNotificationChannel();
+  // }, []);
 
   const scaleW = width / DESIGN_WIDTH;
   const scaleH = height / DESIGN_HEIGHT;
@@ -255,21 +255,21 @@ export default function TableDashboardScreen({ navigation }: Props) {
 
       setNotificationCount(updated.length);
 
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Kitchen check needed',
-          body: `Check order #${orderId} on ${tableName}`,
-          sound: KITCHEN_NOTIFICATION_SOUND,
-          data: {
-            orderId,
-            tableName,
-          },
-        },
-        trigger: {
-          channelId: KITCHEN_NOTIFICATION_CHANNEL_ID,
-          seconds: 1,
-        },
-      });
+      // await Notifications.scheduleNotificationAsync({
+      //   content: {
+      //     title: 'Kitchen check needed',
+      //     body: `Check order #${orderId} on ${tableName}`,
+      //     sound: KITCHEN_NOTIFICATION_SOUND,
+      //     data: {
+      //       orderId,
+      //       tableName,
+      //     },
+      //   },
+      //   trigger: {
+      //     channelId: KITCHEN_NOTIFICATION_CHANNEL_ID,
+      //     seconds: 1,
+      //   },
+      // });
       playNotificationSound();
     },
     [playNotificationSound],

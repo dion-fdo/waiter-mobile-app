@@ -21,8 +21,6 @@ import { deleteOrder, getOrderDetails } from '../../services/api/orderApi';
 import { searchFoods } from '../../services/api/menuApi';
 import { MenuItem } from '../../types/menuItem';
 
-import { useFocusEffect } from '@react-navigation/native';
-
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
 export default function OrderDetailsScreen({ navigation, route }: Props) {
@@ -110,17 +108,9 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
     }
   }, [routeOrderId, placedOrder?.id, ensureValidToken, selectedWaiter?.branchId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchOrderDetails();
-
-      const interval = setInterval(() => {
-        fetchOrderDetails();
-      }, 1500);
-
-      return () => clearInterval(interval);
-    }, [fetchOrderDetails])
-  );
+  useEffect(() => {
+    fetchOrderDetails();
+  }, [fetchOrderDetails]);
 
   const formattedItems = useMemo(() => {
     if (orderDetails?.itemsinfo) {
