@@ -9,7 +9,10 @@ import {
   Animated,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { CartItem } from '../../types/cart';
@@ -18,6 +21,7 @@ import { useAppContext } from '../../context/AppContext';
 type Props = NativeStackScreenProps<RootStackParamList, 'Cart'>;
 
 export default function CartScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const {
     cartItems,
     subtotal,
@@ -181,7 +185,14 @@ export default function CartScreen({ navigation }: Props) {
           }
         />
 
-        <View style={styles.bottomSection}>
+        <View
+          style={[
+            styles.bottomSection,
+            {
+              paddingBottom: Math.max(insets.bottom, 16),
+            },
+          ]}
+        >
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>

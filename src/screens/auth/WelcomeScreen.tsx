@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFonts } from 'expo-font';
@@ -21,6 +22,7 @@ const DESIGN_WIDTH = 360;
 const DESIGN_HEIGHT = 772;
 
 export default function WelcomeScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
 
   const [fontsLoaded] = useFonts({
@@ -313,7 +315,7 @@ export default function WelcomeScreen({ navigation }: Props) {
           style={[
             styles.bottomSection,
             {
-              bottom: 42 * scaleH,
+              bottom: Math.max(insets.bottom + 16, 42 * scaleH),
               paddingHorizontal: 24 * scaleW,
               opacity: bottomAnim,
               transform: [

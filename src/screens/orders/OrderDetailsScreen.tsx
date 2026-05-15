@@ -11,7 +11,10 @@ import {
   Animated,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../../navigation/AppNavigator';
@@ -24,6 +27,7 @@ import { MenuItem } from '../../types/menuItem';
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
 export default function OrderDetailsScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const routeOrderId = route.params?.orderId;
   const routeTableName = route.params?.tableName;
 
@@ -430,7 +434,14 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           }
         />
 
-        <View style={styles.bottomSection}>
+        <View
+          style={[
+            styles.bottomSection,
+            {
+              paddingBottom: Math.max(insets.bottom, 16),
+            },
+          ]}
+        >
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>

@@ -14,9 +14,13 @@ import {
   Image,
   Modal,
   Vibration,
+  Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -55,6 +59,7 @@ const ORDER_PLACED_GIF = require('../../../assets/status/order-placed.gif');
 const PREPARING_GIF = require('../../../assets/status/preparing.gif');
 const READY_GIF = require('../../../assets/status/ready.gif');
 const SERVED_GIF = require('../../../assets/status/served.gif');
+const COMPLETED_GIF = require('../../../assets/status/completed.gif');
 
 const FIRST_REMINDER_MS = 1 * 60 * 1000;
 const REPEAT_REMINDER_MS = 30 * 1000;
@@ -64,11 +69,16 @@ function getReminderKey(orderId: number) {
   return `kitchen_ready_reminder_order_${orderId}`;
 }
 
+function getServedKey(orderId: number) {
+  return `waiter_served_order_${orderId}`;
+}
+
 function getCurrentStep(orderStatus: number): number {
   if (orderStatus === 1 || orderStatus === 6) return 1;
   if (orderStatus === 2) return 2;
   if (orderStatus === 3) return 3;
-  if (orderStatus === 4) return 4;
+  if (orderStatus === 7) return 4;
+  if (orderStatus === 4) return 5;
   return 1;
 }
 
@@ -80,6 +90,7 @@ function buildSteps(orderStatus: number): StatusStep[] {
     { id: '2', label: 'Preparing', completed: currentStep >= 2, current: currentStep === 2 },
     { id: '3', label: 'Ready', completed: currentStep >= 3, current: currentStep === 3 },
     { id: '4', label: 'Served', completed: currentStep >= 4, current: currentStep === 4 },
+    { id: '5', label: 'Completed', completed: currentStep >= 5, current: currentStep === 5 },
   ];
 }
 
@@ -92,8 +103,10 @@ function getStatusText(orderStatus: number): string {
       return 'Preparing';
     case 3:
       return 'Ready';
-    case 4:
+    case 7:
       return 'Served';
+    case 4:
+      return 'Completed';
     case 5:
       return 'Cancelled';
     default:
@@ -107,12 +120,19 @@ function getStatusGif(orderStatus: number) {
   switch (currentStep) {
     case 1:
       return ORDER_PLACED_GIF;
+
     case 2:
       return PREPARING_GIF;
+
     case 3:
       return READY_GIF;
+
     case 4:
       return SERVED_GIF;
+
+    case 5:
+      return COMPLETED_GIF;
+
     default:
       return ORDER_PLACED_GIF;
   }
@@ -127,6 +147,7 @@ function formatElapsed(ms: number) {
 }
 
 export default function OrderStatusScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const routeOrderId = route.params?.orderId;
   const routeTableName = route.params?.tableName;
 
@@ -137,6 +158,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     useState<OrderDetailsResponse['data'] | null>(null);
 
   const [localReadyOrderIds, setLocalReadyOrderIds] = useState<number[]>([]);
+  const [localServedOrderIds, setLocalServedOrderIds] = useState<number[]>([]);
   const [kitchenModalVisible, setKitchenModalVisible] = useState(false);
   const [elapsedPreparingMs, setElapsedPreparingMs] = useState(0);
 
@@ -150,6 +172,22 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
       : placedOrder?.id
       ? Number(placedOrder.id)
       : null;
+
+  useEffect(() => {
+    const loadServedState = async () => {
+      if (effectiveOrderId == null) return;
+
+      const saved = await AsyncStorage.getItem(getServedKey(effectiveOrderId));
+
+      if (saved === 'true') {
+        setLocalServedOrderIds(prev =>
+          prev.includes(effectiveOrderId) ? prev : [...prev, effectiveOrderId]
+        );
+      }
+    };
+
+    loadServedState();
+  }, [effectiveOrderId]);
 
   useEffect(() => {
     activeOrderIdRef.current = effectiveOrderId;
@@ -229,8 +267,14 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
 
   const orderStatus =
     effectiveOrderId != null &&
-    backendOrderStatus === 2 &&
-    localReadyOrderIds.includes(effectiveOrderId)
+    backendOrderStatus === 4
+      ? 4
+      : effectiveOrderId != null &&
+        localServedOrderIds.includes(effectiveOrderId)
+      ? 7
+      : effectiveOrderId != null &&
+        backendOrderStatus === 2 &&
+        localReadyOrderIds.includes(effectiveOrderId)
       ? 3
       : backendOrderStatus;
 
@@ -320,6 +364,11 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
 
       if (backendOrderStatus !== 2) return;
 
+      if (!isOwnWaiterOrder) {
+        await removeKitchenNotification();
+        return;
+      }
+
       if (localReadyOrderIds.includes(effectiveOrderId)) return;
 
       const key = getReminderKey(effectiveOrderId);
@@ -387,6 +436,9 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
       const currentOrderId = activeOrderIdRef.current;
 
       if (!state || currentOrderId == null || state.orderId !== currentOrderId) return;
+
+      if (!isOwnWaiterOrder) return;
+
       if (state.confirmedReady) return;
 
       const now = Date.now();
@@ -431,6 +483,33 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     );
     await removeKitchenNotification();
     setKitchenModalVisible(false);
+  };
+
+  const markOrderServed = async () => {
+    if (effectiveOrderId == null) return;
+
+    await AsyncStorage.setItem(getServedKey(effectiveOrderId), 'true');
+
+    setLocalServedOrderIds(prev =>
+      prev.includes(effectiveOrderId) ? prev : [...prev, effectiveOrderId]
+    );
+  };
+
+  const handleOrderServedPress = () => {
+    Alert.alert(
+      'Mark as Served',
+      'Has this order been served to the table?',
+      [
+        {
+          text: 'No',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes',
+          onPress: markOrderServed,
+        },
+      ]
+    );
   };
 
   const handleKitchenReadyYes = () => {
@@ -518,6 +597,18 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     orderInfo?.waiterId ??
     null;
 
+  const loggedWaiterId =
+    selectedWaiter?.waiterId != null
+      ? String(selectedWaiter.waiterId)
+      : null;
+
+  const isOwnWaiterOrder =
+    orderWaiterId == null ||
+    (
+      loggedWaiterId != null &&
+      String(orderWaiterId) === loggedWaiterId
+    );
+
   const waiterDisplay =
     orderWaiterId != null
       ? `Waiter ${orderWaiterId}`
@@ -584,20 +675,15 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
               return (
                 <View key={step.id} style={styles.timelineRow}>
                   <View style={styles.timelineLeft}>
-                    <View
-                      style={[
-                        styles.dot,
-                        step.completed ? styles.completedDot : styles.pendingDot,
-                        step.current && styles.currentDot,
-                      ]}
+                    <StatusDot
+                      completed={step.completed}
+                      current={step.current}
                     />
 
                     {!isLast ? (
-                      <View
-                        style={[
-                          styles.line,
-                          step.completed ? styles.completedLine : styles.pendingLine,
-                        ]}
+                      <AnimatedTimelineLine
+                        completed={steps[index + 1]?.completed}
+                        active={step.current && !steps[index + 1]?.completed}
                       />
                     ) : null}
                   </View>
@@ -627,36 +713,54 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {orderStatus === 2 ? (
-          <Pressable
-            style={styles.readyButton}
-            onPress={handleOrderPreparedPress}
-          >
-            <Text style={styles.readyButtonText}>Order Prepared</Text>
-          </Pressable>
-        ) : null}
+        <View
+          style={[
+            styles.footerArea,
+            {
+              paddingBottom: Math.max(insets.bottom, 16),
+            },
+          ]}
+        >
+          {orderStatus === 2 ? (
+            <Pressable
+              style={styles.readyButton}
+              onPress={handleOrderPreparedPress}
+            >
+              <Text style={styles.readyButtonText}>Order Prepared</Text>
+            </Pressable>
+          ) : null}
 
-        <View style={styles.buttonRow}>
-          <Pressable
-            style={styles.secondaryButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.secondaryButtonText}>Back</Text>
-          </Pressable>
+          {orderStatus === 3 ? (
+            <Pressable
+              style={styles.readyButton}
+              onPress={handleOrderServedPress}
+            >
+              <Text style={styles.readyButtonText}>Mark as Served</Text>
+            </Pressable>
+          ) : null}
 
-          <Pressable
-            style={styles.button}
-            onPress={() =>
-              navigation.navigate('OrderDetails', {
-                orderId:
-                  routeOrderId ??
-                  (placedOrder?.id ? Number(placedOrder.id) : undefined),
-                tableName: tableDisplay,
-              })
-            }
-          >
-            <Text style={styles.buttonText}>View Order</Text>
-          </Pressable>
+          <View style={styles.buttonRow}>
+            <Pressable
+              style={styles.secondaryButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.secondaryButtonText}>Back</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.button}
+              onPress={() =>
+                navigation.navigate('OrderDetails', {
+                  orderId:
+                    routeOrderId ??
+                    (placedOrder?.id ? Number(placedOrder.id) : undefined),
+                  tableName: tableDisplay,
+                })
+              }
+            >
+              <Text style={styles.buttonText}>View Order</Text>
+            </Pressable>
+          </View>
         </View>
 
         <Modal
@@ -703,6 +807,132 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
   );
 }
 
+function StatusDot({
+  completed,
+  current,
+}: {
+  completed: boolean;
+  current: boolean;
+}) {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!current) {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    loop.start();
+
+    return () => loop.stop();
+  }, [current, pulseAnim]);
+
+  if (current) {
+    return (
+      <Animated.View
+        style={[
+          styles.currentDotRing,
+          {
+            transform: [{ scale: pulseAnim }],
+          },
+        ]}
+      >
+        <View style={styles.currentDotInner} />
+      </Animated.View>
+    );
+  }
+
+  if (completed) {
+    return (
+      <View style={styles.completedDotCircle}>
+        <Text style={styles.completedDotTick}>✓</Text>
+      </View>
+    );
+  }
+
+  return <View style={styles.pendingDotCircle} />;
+}
+
+function AnimatedTimelineLine({
+  completed,
+  active,
+}: {
+  completed: boolean;
+  active: boolean;
+}) {
+  const slideAnim = useRef(new Animated.Value(-1)).current;
+
+  useEffect(() => {
+    if (!active) {
+      slideAnim.stopAnimation();
+      slideAnim.setValue(-1);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.timing(slideAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    );
+
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [active, slideAnim]);
+
+  if (completed) {
+    return (
+      <View style={styles.lineTrack}>
+        <View style={styles.completedStaticLine} />
+      </View>
+    );
+  }
+
+  if (!active) {
+    return <View style={styles.lineTrack} />;
+  }
+
+  return (
+    <View style={styles.lineTrack}>
+      <Animated.View
+        style={[
+          styles.movingLineFill,
+          {
+            transform: [
+              {
+                translateY: slideAnim.interpolate({
+                  inputRange: [-1, 1],
+                  outputRange: [-60, 60],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -713,7 +943,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingBottom: 20,
   },
 
   centered: {
@@ -785,7 +1014,7 @@ const styles = StyleSheet.create({
 
   timelineRow: {
     flexDirection: 'row',
-    minHeight: 72,
+    minHeight: 60,
   },
 
   timelineLeft: {
@@ -793,40 +1022,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  dot: {
+  completedDotCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 15,
+    backgroundColor: '#F05822',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+  },
+
+  completedDotTick: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    lineHeight: 24,
+  },
+
+  currentDotRing: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#F05822',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+  },
+
+  currentDotInner: {
     width: 18,
     height: 18,
     borderRadius: 9,
-    marginTop: 2,
-  },
-
-  currentDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
-
-  completedDot: {
     backgroundColor: '#F05822',
   },
 
-  pendingDot: {
+  pendingDotCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 12,
     backgroundColor: '#E5E7EB',
+    marginTop: 3,
   },
 
-  line: {
+  lineTrack: {
     width: 3,
     flex: 1,
     marginTop: 4,
     borderRadius: 2,
-  },
-
-  completedLine: {
-    backgroundColor: '#F05822',
-  },
-
-  pendingLine: {
     backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+
+  completedStaticLine: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F05822',
+    borderRadius: 2,
+  },
+
+  movingLineFill: {
+    width: '100%',
+    height: 40,
+    backgroundColor: '#F05822',
+    borderRadius: 2,
   },
 
   timelineContent: {
@@ -835,7 +1095,7 @@ const styles = StyleSheet.create({
   },
 
   stepLabel: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '600',
     marginBottom: 4,
   },
@@ -860,8 +1120,12 @@ const styles = StyleSheet.create({
   },
 
   statusGif: {
-    width: 220,
-    height: 220,
+    width: 165,
+    height: 165,
+  },
+
+  footerArea: {
+    paddingTop: 8,
   },
 
   readyButton: {
@@ -881,7 +1145,7 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 12,
+    marginTop: 10,
   },
 
   secondaryButton: {

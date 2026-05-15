@@ -22,6 +22,7 @@ type TableOrder = {
   order_id: number;
   order_status: number;
   order_source?: string;
+  waiter_id?: number | string | null;
 };
 
 function getStatusLabel(status: number) {
@@ -181,6 +182,67 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
         <FlatList
           data={orders}
           keyExtractor={(item) => String(item.order_id)}
+          // renderItem={({ item }) => {
+          //   const isWaiterOrder = item.order_source === 'WAITER_APP';
+
+          //   const orderWaiterId =
+          //     item.waiter_id != null ? String(item.waiter_id) : null;
+
+          //   const loggedWaiterId =
+          //     selectedWaiter?.waiterId != null
+          //       ? String(selectedWaiter.waiterId)
+          //       : null;
+
+          //   const canOpenOrder =
+          //     isWaiterOrder &&
+          //     orderWaiterId != null &&
+          //     loggedWaiterId != null &&
+          //     orderWaiterId === loggedWaiterId;
+
+          //   const lockedReason = !isWaiterOrder
+          //     ? 'Cashier Order'
+          //     : orderWaiterId == null
+          //     ? 'Owner unavailable'
+          //     : 'Other Waiter Order';
+
+          //   return (
+          //     <Pressable
+          //       disabled={!canOpenOrder}
+          //       style={[
+          //         styles.orderCard,
+          //         !canOpenOrder && styles.disabledOrderCard,
+          //       ]}
+          //       onPress={() => {
+          //         if (!canOpenOrder) return;
+
+          //         handleOpenOrder(item.order_id);
+          //       }}
+          //     >
+          //       <View style={styles.orderLeft}>
+          //         <Text style={styles.orderId}>
+          //           Order #{item.order_id}
+          //         </Text>
+
+          //         <View style={styles.statusPill}>
+          //           <Text style={styles.statusPillText}>
+          //             {getStatusLabel(item.order_status)}
+          //           </Text>
+          //         </View>
+
+          //         {!canOpenOrder && (
+          //           <Text style={styles.disabledOrderText}>
+          //             {lockedReason}
+          //           </Text>
+          //         )}
+          //       </View>
+
+          //       <Text style={styles.viewText}>
+          //         {canOpenOrder ? 'View' : 'Locked'}
+          //       </Text>
+          //     </Pressable>
+          //   );
+          // }}
+
           renderItem={({ item }) => {
             const isWaiterOrder =
               item.order_source === 'WAITER_APP';

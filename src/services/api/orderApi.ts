@@ -101,6 +101,7 @@ export type OrderDetailsResponse = {
       customer_id: number | null;
       status: number;
       order_source: string;
+      waiter_id?: number | string | null;
     };
     itemsinfo: OrderDetailsItemResponse[];
   };
@@ -168,6 +169,7 @@ export type ActiveTableOrderResponse = {
     order_id: number;
     order_status: number;
     order_source?: string;
+    waiter_id?: number | string | null;
   }[];
 };
 

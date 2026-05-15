@@ -10,6 +10,7 @@ import {
   StatusBar,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useAppContext } from '../../context/AppContext';
@@ -19,7 +20,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'WaiterPin'>;
 
 export default function WaiterPinScreen({ route, navigation }: Props) {
   const { waiterName } = route.params;
-
+  const insets = useSafeAreaInsets();
   const {
     selectedWaiter,
     setSelectedWaiter,
@@ -159,7 +160,7 @@ export default function WaiterPinScreen({ route, navigation }: Props) {
           style={[
             styles.bottomSection,
             {
-              bottom: 42 * scaleH,
+              bottom: Math.max(insets.bottom + 16, 42 * scaleH),
               paddingHorizontal: 28 * scaleW,
             },
           ]}

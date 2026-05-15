@@ -20,7 +20,10 @@ import { useAppContext } from '../../context/AppContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { RestaurantTable } from '../../types/table';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useEventListener } from 'expo';
@@ -68,6 +71,7 @@ const KITCHEN_NOTIFICATION_CHANNEL_ID = 'kitchen-check-alerts';
 const KITCHEN_NOTIFICATION_SOUND = 'notification_sound.wav';
 
 export default function TableDashboardScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<TableFilter>('all');
   const { width, height } = useWindowDimensions();
   const {
@@ -759,7 +763,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
           styles.listContent,
           {
             paddingHorizontal: horizontalListPadding,
-            paddingBottom: 110 * scaleH,
+            paddingBottom: 110 * scaleH + Math.max(insets.bottom, 0),
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -778,9 +782,8 @@ export default function TableDashboardScreen({ navigation }: Props) {
             borderTopRightRadius: 22 * scale,
             paddingHorizontal: 18 * scaleW,
             paddingBottom: 6 * scaleH,
-            marginBottom: 0,
-
-          },
+            bottom: Math.max(insets.bottom, 0),
+          }
         ]}
       >
         <BottomTab
