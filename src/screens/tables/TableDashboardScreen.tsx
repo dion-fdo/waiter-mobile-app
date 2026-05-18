@@ -64,6 +64,10 @@ function getReminderKey(orderId: number) {
   return `kitchen_ready_reminder_order_${orderId}`;
 }
 
+function getNotesKey(tableId: number | string) {
+  return `table_notepad_notes_${tableId}`;
+}
+
 const DESIGN_WIDTH = 360;
 const DESIGN_HEIGHT = 772;
 
@@ -103,6 +107,9 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const logoutSheetAnim = useState(new Animated.Value(320))[0];
 
   const [notificationCount, setNotificationCount] = useState(0);
+  const [tableNotesMap, setTableNotesMap] = useState<
+    Record<string, 'none' | 'normal' | 'important'>
+  >({});
 
   const notificationPlayer = useAudioPlayer(
     require('../../../assets/notification/notification_sound.wav')
@@ -389,6 +396,39 @@ export default function TableDashboardScreen({ navigation }: Props) {
     ]
   );
 
+  const loadTableNotesMap = useCallback(async (tablesData: RestaurantTable[]) => {
+    const nextMap: Record<string, 'none' | 'normal' | 'important'> = {};
+
+    await Promise.all(
+      tablesData.map(async (table) => {
+        const saved = await AsyncStorage.getItem(getNotesKey(table.id));
+        const tableKey = String(table.id);
+
+        if (!saved) {
+          nextMap[tableKey] = 'none';
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(saved);
+
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+            nextMap[tableKey] = 'none';
+            return;
+          }
+
+          const hasImportant = parsed.some((note: any) => note.important === true);
+
+          nextMap[tableKey] = hasImportant ? 'important' : 'normal';
+        } catch {
+          nextMap[tableKey] = 'none';
+        }
+      })
+    );
+
+    setTableNotesMap(nextMap);
+  }, []);
+
   const loadTables = useCallback(async () => {
     try {
       const token = await ensureValidToken();
@@ -428,11 +468,17 @@ export default function TableDashboardScreen({ navigation }: Props) {
       }
 
       setTables(data);
+      await loadTableNotesMap(data);
       await syncKitchenRemindersFromTables(data);
     } catch (error: any) {
       Alert.alert('Failed to load tables', error?.message || 'Please try again');
     }
-  }, [ensureValidToken, selectedWaiter?.branchId, syncKitchenRemindersFromTables]);
+  }, [
+    ensureValidToken,
+    selectedWaiter?.branchId,
+    syncKitchenRemindersFromTables,
+    loadTableNotesMap,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -550,7 +596,6 @@ export default function TableDashboardScreen({ navigation }: Props) {
   const cardSize =
     (width - horizontalListPadding * 2 - cardGap * (numColumns - 1)) / numColumns;
 
-
   const renderTable = ({ item }: { item: RestaurantTable }) => {
     const cardBg =
       item.status === 'free'
@@ -603,6 +648,29 @@ export default function TableDashboardScreen({ navigation }: Props) {
             {item.number}
           </Text>
         </View>
+        
+        <Pressable
+          style={styles.noteIconButton}
+          onPress={(event) => {
+            event.stopPropagation();
+
+            navigation.navigate('Notepad', {
+              tableId: Number(item.id),
+              tableName: item.name ?? `Table ${item.number}`,
+            });
+          }}
+        >
+          <Image
+            source={
+              tableNotesMap[String(item.id)] === 'important'
+                ? require('../../../assets/imp-notes.png')
+                : tableNotesMap[String(item.id)] === 'normal'
+                ? require('../../../assets/notes.png')
+                : require('../../../assets/notepad.png')
+            }
+            style={styles.noteIconImage}
+          />
+        </Pressable>
 
         {transitioningFullTableIds[item.id] ? (
           <FullTableTransitionVideo
@@ -665,6 +733,7 @@ export default function TableDashboardScreen({ navigation }: Props) {
           },
         ]}
       >
+        
         <View style={styles.leftHeader}>
           <Image
             source={require('../../../assets/logo-icon.png')}
@@ -1404,6 +1473,24 @@ const styles = StyleSheet.create({
   notificationIconImage: {
     width: 20,
     height: 20,
+    resizeMode: 'contain',
+  },
+  noteIconButton: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgb(0, 0, 0)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+
+  noteIconImage: {
+    width: 15,
+    height: 15,
     resizeMode: 'contain',
   },
 });

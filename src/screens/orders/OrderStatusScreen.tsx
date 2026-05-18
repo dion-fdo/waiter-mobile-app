@@ -28,6 +28,9 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useAppContext } from '../../context/AppContext';
 import { getOrderDetails, OrderDetailsResponse } from '../../services/api/orderApi';
 
+import { getWaiters } from '../../services/api/waiterApi';
+import { Waiter } from '../../types/waiter';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderStatus'>;
 
 type StatusStep = {
@@ -151,6 +154,8 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
   const routeOrderId = route.params?.orderId;
   const routeTableName = route.params?.tableName;
 
+  const [waitersList, setWaitersList] = useState<Waiter[]>([]);
+
   const { placedOrder, ensureValidToken, selectedWaiter } = useAppContext();
 
   const [loading, setLoading] = useState(true);
@@ -218,6 +223,8 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
         );
 
         setOrderDetails(response.data);
+        const waiters = await getWaiters(token || undefined);
+        setWaitersList(waiters);
       } catch (error: any) {
         console.log('Failed to load order status', error);
       } finally {
@@ -609,13 +616,14 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
       String(orderWaiterId) === loggedWaiterId
     );
 
+  const matchedWaiter = waitersList.find(
+    (waiter) =>
+      Number(waiter.waiterId) === Number(orderWaiterId)
+  );
+
   const waiterDisplay =
-    orderWaiterId != null
-      ? `Waiter ${orderWaiterId}`
-      : placedOrder?.waiter?.name ??
-        selectedWaiter?.name ??
-        selectedWaiter?.email ??
-        'Not selected';
+    matchedWaiter?.email ??
+    `Waiter ${orderWaiterId ?? 'Unknown'}`;
 
   const statusText = getStatusText(orderStatus);
   const statusGif = getStatusGif(orderStatus);
@@ -721,7 +729,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
             },
           ]}
         >
-          {orderStatus === 2 ? (
+          {isOwnWaiterOrder && orderStatus === 2 ? (
             <Pressable
               style={styles.readyButton}
               onPress={handleOrderPreparedPress}
@@ -730,7 +738,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
             </Pressable>
           ) : null}
 
-          {orderStatus === 3 ? (
+          {isOwnWaiterOrder && orderStatus === 3 ? (
             <Pressable
               style={styles.readyButton}
               onPress={handleOrderServedPress}

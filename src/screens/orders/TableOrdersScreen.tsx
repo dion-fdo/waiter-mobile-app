@@ -103,6 +103,7 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
     navigation.push('OrderDetails', {
       orderId,
       tableName,
+      source: 'tableOrders',
     });
   };
 
@@ -137,21 +138,6 @@ export default function TableOrdersScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.topCard}>
-          <Pressable
-            style={styles.noteIconButton}
-            onPress={() =>
-              navigation.navigate('Notepad', {
-                tableId,
-                tableName,
-              })
-            }
-          >
-              <Image
-                source={require('../../../assets/notepad.png')}
-                style={styles.noteIconImage}
-              />
-          </Pressable>
-
           <Text style={styles.header}>{tableName}</Text>
           <Text style={styles.subHeader}>Current Orders</Text>
 
@@ -525,24 +511,5 @@ const styles = StyleSheet.create({
   loaderGif: {
     width: 100,
     height: 100,
-  },
-
-  noteIconButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 225, 202, 0.32)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-
-  noteIconImage: {
-    width: 22,
-    height: 22,
-    resizeMode: 'contain',
   },
 });

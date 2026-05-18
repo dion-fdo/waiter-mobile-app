@@ -24,12 +24,17 @@ import { deleteOrder, getOrderDetails } from '../../services/api/orderApi';
 import { searchFoods } from '../../services/api/menuApi';
 import { MenuItem } from '../../types/menuItem';
 
+import { getWaiters } from '../../services/api/waiterApi';
+import { Waiter } from '../../types/waiter';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
 export default function OrderDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const routeOrderId = route.params?.orderId;
   const routeTableName = route.params?.tableName;
+  const routeSource = route.params?.source;
+  const [waitersList, setWaitersList] = useState<Waiter[]>([]);
 
   const {
     placedOrder,
@@ -105,6 +110,8 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
         selectedWaiter?.branchId
       );
       setFoodCatalog(foods);
+      const waiters = await getWaiters(token || undefined);
+      setWaitersList(waiters);
     } catch (error) {
       console.error('Failed to load order details', error);
     } finally {
@@ -221,13 +228,17 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
     orderInfo?.waiterId ??
     null;
 
+  const isOwnOrder =
+    Number(orderWaiterId) === Number(selectedWaiter?.waiterId);
+
+  const matchedWaiter = waitersList.find(
+    (waiter) =>
+      Number(waiter.waiterId) === Number(orderWaiterId)
+  );
+
   const waiterDisplay =
-    orderWaiterId != null
-      ? `Waiter ${orderWaiterId}`
-      : placedOrder?.waiter?.name ??
-        selectedWaiter?.name ??
-        selectedWaiter?.email ??
-        'Not available';
+    matchedWaiter?.email ??
+    `Waiter ${orderWaiterId ?? 'Unknown'}`;
 
   const handleDeleteOrder = () => {
     const orderId =
@@ -272,13 +283,25 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
         return;
       }
 
-      startEditBackendOrder(orderDetails, selectedTable ?? null);
+      const tableNumberFromDisplay = String(tableDisplay).match(/\d+/)?.[0];
+
+      const editTable =
+        selectedTable ??
+        (tableNumberFromDisplay
+          ? {
+              id: tableNumberFromDisplay,
+              number: Number(tableNumberFromDisplay),
+              name: `Table ${tableNumberFromDisplay}`,
+              capacity: 1,
+              status: 'partially_occupied' as const,
+            }
+          : null);
+
+      startEditBackendOrder(orderDetails, editTable);
 
       navigation.navigate('EditPlacedOrder', {
         tableName: tableDisplay,
-        tableId: placedOrder?.table?.id
-          ? Number(placedOrder.table.id)
-          : undefined,
+        tableId: editTable?.id ? Number(editTable.id) : undefined,
       });
 
       return;
@@ -386,6 +409,16 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.topCard}>
+          <Pressable
+            style={styles.tableDashboardButton}
+            onPress={() => navigation.navigate('TableDashboard')}
+          >
+            <Image
+              source={require('../../../assets/tables/table.png')}
+              style={styles.tableDashboardIcon}
+              resizeMode="contain"
+            />
+          </Pressable>
           <Text style={styles.topTableText}>{tableDisplay}</Text>
 
           <Text style={styles.topTitle}>Order Details</Text>
@@ -459,29 +492,38 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          <View style={styles.actionRow}>
-            <Pressable
-              style={[styles.smallActionButton, styles.secondaryButton]}
-              onPress={handleEditOrder}
-            >
-              <Text style={styles.secondaryButtonText}>Edit order</Text>
-            </Pressable>
+          {isOwnOrder && (
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.smallActionButton, styles.secondaryButton]}
+                onPress={handleEditOrder}
+              >
+                <Text style={styles.secondaryButtonText}>Edit order</Text>
+              </Pressable>
 
-            <Pressable
-              style={[styles.smallActionButton, styles.secondaryButton]}
-              onPress={handleDeleteOrder}
-              disabled={deleting}
-            >
-              <Text style={styles.secondaryButtonText}>
-                {deleting ? 'Deleting...' : 'Delete order'}
-              </Text>
-            </Pressable>
-          </View>
+              <Pressable
+                style={[styles.smallActionButton, styles.secondaryButton]}
+                onPress={handleDeleteOrder}
+                disabled={deleting}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {deleting ? 'Deleting...' : 'Delete order'}
+                </Text>
+              </Pressable>
+            </View>
+          )}
 
           <View style={styles.statusButtonRow}>
             <Pressable
               style={styles.backButton}
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                if (routeSource === 'cart') {
+                  navigation.navigate('TableDashboard');
+                  return;
+                }
+
+                navigation.goBack();
+              }}
             >
               <Text style={styles.backButtonText}>Back</Text>
             </Pressable>
@@ -862,5 +904,21 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 15,
     fontWeight: '700',
+  },
+
+  tableDashboardButton: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    zIndex: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 6,
+    borderRadius: 8,
+  },
+
+  tableDashboardIcon: {
+    width: 28,
+    height: 28,
+    tintColor: '#FFFFFF',
   },
 });

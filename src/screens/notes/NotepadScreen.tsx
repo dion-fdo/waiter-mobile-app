@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -26,6 +27,7 @@ type Note = {
   body: string;
   createdAt: number;
   updatedAt: number;
+  important?: boolean;
 };
 
 function getNotesKey(tableId: number) {
@@ -40,6 +42,7 @@ export default function NotepadScreen({ navigation, route }: Props) {
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [important, setImportant] = useState(false);
 
   const loadNotes = useCallback(async () => {
     const saved = await AsyncStorage.getItem(getNotesKey(tableId));
@@ -70,6 +73,7 @@ export default function NotepadScreen({ navigation, route }: Props) {
     setEditingNote(null);
     setTitle('');
     setBody('');
+    setImportant(false);
     setModalVisible(true);
   };
 
@@ -77,6 +81,7 @@ export default function NotepadScreen({ navigation, route }: Props) {
     setEditingNote(note);
     setTitle(note.title);
     setBody(note.body);
+    setImportant(!!note.important);
     setModalVisible(true);
   };
 
@@ -95,6 +100,7 @@ export default function NotepadScreen({ navigation, route }: Props) {
               ...note,
               title: title.trim(),
               body: body.trim(),
+              important,
               updatedAt: now,
             }
           : note
@@ -106,6 +112,7 @@ export default function NotepadScreen({ navigation, route }: Props) {
         id: `${now}`,
         title: title.trim() || 'Untitled Note',
         body: body.trim(),
+        important,
         createdAt: now,
         updatedAt: now,
       };
@@ -209,9 +216,24 @@ export default function NotepadScreen({ navigation, route }: Props) {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>
-                {editingNote ? 'Edit Note' : 'Add Note'}
-              </Text>
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalTitle}>
+                  {editingNote ? 'Edit Note' : 'Add Note'}
+                </Text>
+
+                <Pressable
+                  style={[
+                    styles.importantButton,
+                    important && styles.importantButtonActive,
+                  ]}
+                  onPress={() => setImportant(prev => !prev)}
+                >
+                  <Image
+                    source={require('../../../assets/important.png')}
+                    style={styles.importantIcon}
+                  />
+                </Pressable>
+              </View>
 
               <TextInput
                 value={title}
@@ -241,6 +263,18 @@ export default function NotepadScreen({ navigation, route }: Props) {
 
                 <Pressable style={styles.saveButton} onPress={handleSaveNote}>
                   <Text style={styles.saveButtonText}>Save</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.cashierButton}
+                  onPress={() => {
+                    // TODO: send note to cashier
+                  }}
+                >
+                  <Image
+                    source={require('../../../assets/send-cashier.png')}
+                    style={styles.cashierIcon}
+                  />
                 </Pressable>
               </View>
             </View>
@@ -474,5 +508,47 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+
+  importantButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#d10000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  importantButtonActive: {
+    backgroundColor: '#2d8700',
+    borderWidth: 1,
+    borderColor: '#70f564',
+  },
+
+  importantIcon: {
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
+  },
+
+  cashierButton: {
+    width: 48,
+    borderRadius: 12,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cashierIcon: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
   },
 });

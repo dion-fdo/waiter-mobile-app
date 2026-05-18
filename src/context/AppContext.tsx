@@ -388,7 +388,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const placeOrder = async (): Promise<boolean> => {
     try {
-      if (!selectedTable) {
+      const editTable = selectedTable ?? placedOrder?.table;
+
+      if (!editTable) {
         throw new Error('Table not selected');
       }
 
@@ -417,7 +419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         order_date: today,
         waiter_id: Number(selectedWaiter.waiterId),
         branch_id: Number(selectedWaiter.branchId),
-        tableid: Number(selectedTable.id),
+        tableid: Number(editTable.id),
         room_id: null,
         reservation_id: null,
         customernote: '',
@@ -463,7 +465,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         customerId: Number(selectedCustomer.id),
       });
 
-      await clearDraftForTable(selectedTable.id);
+      await clearDraftForTable(editTable.id);
       setCartItems([]);
 
       return true;
@@ -504,9 +506,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       0
     );
 
+    const orderInfoAny = orderData.orderinfo as any;
+
+    const orderTableId =
+      orderInfoAny.tableid ??
+      orderInfoAny.table_id ??
+      orderInfoAny.tableId ??
+      orderInfoAny.table_no ??
+      orderInfoAny.table_number ??
+      null;
+
+    const fallbackTable: RestaurantTable | null =
+      orderTableId != null
+        ? {
+            id: String(orderTableId),
+            number: Number(orderTableId),
+            name: `Table ${orderTableId}`,
+            capacity: 1,
+            status: 'partially_occupied',
+          }
+        : null;
+
     const nextPlacedOrder: PlacedOrder = {
       id: String(orderData.orderinfo.order_id),
-      table: table ?? selectedTable ?? null,
+      table: table ?? selectedTable ?? fallbackTable,
       waiter: selectedWaiter,
       items: mappedItems,
       subtotal: nextSubtotal,
@@ -614,6 +637,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         payload,
         token || undefined
       );
+
+      const orderId = Number(placedOrder.id);
+
+      await AsyncStorage.removeItem(`kitchen_ready_reminder_order_${orderId}`);
+      await AsyncStorage.removeItem(`waiter_served_order_${orderId}`);
 
       setPlacedOrder({
         ...placedOrder,

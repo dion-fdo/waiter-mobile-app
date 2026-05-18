@@ -76,6 +76,10 @@ export default function CartScreen({ navigation }: Props) {
       if (success) {
         navigation.navigate('OrderDetails', {
           orderId: undefined,
+          tableName: selectedTable
+            ? `Table ${selectedTable.number}`
+            : undefined,
+          source: 'cart',
         });
       } else {
         Alert.alert('Order placement failed');
